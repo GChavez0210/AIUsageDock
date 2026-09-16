@@ -10,6 +10,16 @@ The extension delegates authentication and usage retrieval to the installed CLIs
 
 It never reads or stores OAuth access tokens and never calls private provider endpoints directly. The profile files it reads contain only account metadata (email, plan, organization); credentials live in separate files the extension does not open.
 
+## Screenshots
+
+The three bands sit on the Dock next to the built-in Performance Monitor. Selecting a band opens its detail page.
+
+![Claude detail page showing session and weekly bars, plan, billing, and extra usage](screenshots/claude.png)
+
+| Codex | Antigravity |
+|---|---|
+| ![Codex detail page with a session window running low](screenshots/codex.png) | ![Antigravity detail page with per-model-group windows](screenshots/antigravity.png) |
+
 ## Prerequisites
 
 - Windows 11
