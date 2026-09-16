@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <Platforms>x64</Platforms>
+    <RootNamespace>AIUsageDock</RootNamespace>
+    <AssemblyName>AIUsageDock</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AppxManifest>$(ProjectDir)Package.appxmanifest</AppxManifest>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>MSIX</WindowsPackageType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+    <ProjectCapability Include="Msix" Condition="'$(EnableMsixTooling)'=='true'" />
+    <PackageReference Include="Microsoft.CommandPalette.Extensions" Version="0.9.260303001" />
+    <PackageReference Include="JPSoftworks.CommandPalette.Extensions.Toolkit" Version="0.9.0" />
+    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets\*.png" />
+    <Content Include="Assets\icons\*.svg;Assets\icons\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

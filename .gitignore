@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+*.cer
+*.pfx
+*.msix
+*.msixbundle
+.vs/
+.reference-ClaudeUsage/
+.reference-usagebat/
+
