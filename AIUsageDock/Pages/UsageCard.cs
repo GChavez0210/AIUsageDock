@@ -162,7 +162,7 @@ internal static class UsageCard
         ["type"] = "Column",
         ["width"] = weight.ToString(),
         ["style"] = style,
-        ["minHeight"] = "10px",
+        ["minHeight"] = "2px",
         ["items"] = new JsonArray(),
     };
 
