@@ -50,12 +50,14 @@ Place the AI usage bands **after** the built-in **Performance Monitor** band (CP
 
 Selecting a band opens a detail page for that provider. Each page shows:
 
-- One section per limit window with a remaining-capacity bar, the window length (`5h`, `7d`), a countdown to the reset and the local reset time. Windows that are locked, exhausted, or under 20% are flagged inline.
+- One section per limit window with a filled remaining-capacity bar, the window length (`5h`, `7d`), a countdown to the reset and the local reset time. The bar takes the theme accent colour, turns amber under 20%, and red when a window is exhausted or locked.
 - An **Account** block with whatever the CLI reports about the subscription:
   - Claude: plan (Pro, Max, Team, Enterprise), account, organization and role for team plans, billing type, subscription date, rate-limit tier when it is not the default, and extra-usage spend against the monthly cap. Per-model weekly caps (Opus, Sonnet) appear as their own windows when the service reports them.
   - Codex: ChatGPT plan, account email, sign-in method, and credit balance.
   - Antigravity: active Google account, plus a plan or tier if a future CLI adds one to the quota payload.
 - A footer with the data source and how long ago it was read.
+
+The page is an Adaptive Card rendered by Command Palette, so it follows the palette theme.
 
 When a provider cannot be read, the page names the cause (CLI missing, not signed in, timed out, no usage data) and says what to do about it.
 
