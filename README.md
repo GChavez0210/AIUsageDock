@@ -4,7 +4,7 @@ A Windows PowerToys Command Palette extension that shows remaining Codex, Claude
 
 The extension delegates authentication and usage retrieval to the installed CLIs:
 
-- Codex: starts `codex app-server --stdio` and calls `account/read` and `account/rateLimits/read`.
+- Codex: starts the native `codex app-server --stdio` executable and calls `account/read` and `account/rateLimits/read`. If the native launch or protocol fails, it retries through the installed `codex.cmd` wrapper when available.
 - Claude Code: reads the service-reported `cachedUsageUtilization` snapshot and the non-secret `oauthAccount` profile maintained by Claude Code in `~/.claude.json`. When the snapshot is stale, it asks `claude -p "/usage" --output-format json` for a refresh and then rereads the cache.
 - Antigravity: calls `agy -p "/usage" --mode plan --output-format json`, which returns quota data without consuming tokens, and reads the active account name from `~/.gemini/google_accounts.json`.
 

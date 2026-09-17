@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
 using AIUsageDock.Models;
@@ -38,7 +39,10 @@ internal sealed class CodexUsageProvider : IUsageProvider
 
             try
             {
-                var (accountJson, rateLimitsJson) = await ReadAccountAndRateLimitsAsync(executable, cancellationToken);
+                var (accountJson, rateLimitsJson) = await ReadWithShimFallbackAsync(
+                    executable,
+                    ExecutableResolver.ResolveCodexShim(),
+                    path => ReadAccountAndRateLimitsAsync(path, cancellationToken));
                 var snapshot = ParseRateLimitsJson(rateLimitsJson, DateTimeOffset.UtcNow, accountJson);
                 return _cached = snapshot is null
                     ? UsageResult.Failure(UsageFailureReason.InvalidData, "Codex returned no rate-limit windows")
@@ -288,6 +292,28 @@ internal sealed class CodexUsageProvider : IUsageProvider
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
+
+    internal static async Task<T> ReadWithShimFallbackAsync<T>(
+        string executable,
+        string? shim,
+        Func<string, Task<T>> read)
+    {
+        if (shim is null || string.Equals(executable, shim, StringComparison.OrdinalIgnoreCase))
+        {
+            return await read(executable);
+        }
+
+        try
+        {
+            return await read(executable);
+        }
+        catch (Exception exception) when (
+            (exception is InvalidOperationException or Win32Exception or IOException) &&
+            !exception.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase))
+        {
+            return await read(shim);
+        }
+    }
 
     private async Task<(string? AccountJson, string RateLimitsJson)> ReadAccountAndRateLimitsAsync(string executable, CancellationToken cancellationToken)
     {
