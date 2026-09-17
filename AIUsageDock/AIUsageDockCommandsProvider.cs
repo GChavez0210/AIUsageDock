@@ -62,11 +62,6 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
                 Subtitle = "Choose which usage bands to show",
                 Icon = new IconInfo("\uE713"),
             },
-            new CommandItem(new AboutPage())
-            {
-                Title = "About AI Usage Dock",
-                Icon = new IconInfo("\uE946"),
-            },
         ];
 
         _refreshTimer = new Timer(

@@ -1,5 +1,4 @@
 using AIUsageDock.Models;
-using AIUsageDock.Pages;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Xunit;
 
@@ -24,15 +23,15 @@ public sealed class ProviderSelectionTests
             {
                 Assert.NotNull(commandProvider.Settings);
                 Assert.Equal(3, commandProvider.GetDockBands()!.Length);
-                Assert.Equal(6, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(5, commandProvider.TopLevelCommands().Length);
 
                 var form = Assert.IsType<SettingsForm>(Assert.Single(selection.ToolkitSettings.ToContent()));
                 form.SubmitForm("""{"claude":"false","codex":"true","antigravity":"false"}""", "{}");
 
                 Assert.Single(commandProvider.GetDockBands()!);
-                Assert.Equal(4, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(3, commandProvider.TopLevelCommands().Length);
                 Assert.Contains(commandProvider.TopLevelCommands(), item => item.Title == "Select subscriptions");
-                Assert.Contains(commandProvider.TopLevelCommands(), item => item.Title == "About AI Usage Dock");
+                Assert.DoesNotContain(commandProvider.TopLevelCommands(), item => item.Title == "About AI Usage Dock");
 
                 await commandProvider.RefreshAsync(force: true);
                 Assert.Equal(0, providers[0].Calls);
@@ -42,7 +41,7 @@ public sealed class ProviderSelectionTests
                 var secondForm = Assert.IsType<SettingsForm>(Assert.Single(selection.ToolkitSettings.ToContent()));
                 secondForm.SubmitForm("""{"claude":"false","codex":"false","antigravity":"false"}""", "{}");
                 Assert.Empty(commandProvider.GetDockBands()!);
-                Assert.Equal(3, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(2, commandProvider.TopLevelCommands().Length);
                 await commandProvider.RefreshAsync(force: true);
                 Assert.Equal(1, providers[1].Calls);
             }
@@ -56,14 +55,6 @@ public sealed class ProviderSelectionTests
         {
             if (File.Exists(path)) File.Delete(path);
         }
-    }
-
-    [Fact]
-    public void AboutPageCreditsTheAuthor()
-    {
-        var content = Assert.Single(new AboutPage().GetContent());
-        var markdown = Assert.IsType<MarkdownContent>(content);
-        Assert.Contains(AboutPage.AboutText, markdown.Body);
     }
 
     private sealed class FakeUsageProvider(string id) : IUsageProvider

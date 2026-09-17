@@ -26,5 +26,6 @@ public sealed class DockBandContractTests
             Assert.NotEmpty(items);
             Assert.All(items, item => Assert.NotNull(item.Icon));
         });
+
     }
 }
