@@ -9,6 +9,7 @@
     <RootNamespace>AIUsageDock</RootNamespace>
     <AssemblyName>AIUsageDock</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AIUsageDock.ico</ApplicationIcon>
     <AppxManifest>$(ProjectDir)Package.appxmanifest</AppxManifest>
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>MSIX</WindowsPackageType>

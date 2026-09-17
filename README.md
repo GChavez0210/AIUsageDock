@@ -1,5 +1,7 @@
 # AI Usage Dock
 
+<img src="AIUsageDock/Assets/AIUsageDock.svg" alt="AI Usage Dock logo" width="96">
+
 A Windows PowerToys Command Palette extension that shows remaining Codex, Claude Code, and Antigravity subscription capacity in the Command Palette Dock.
 
 The extension delegates authentication and usage retrieval to the installed CLIs:

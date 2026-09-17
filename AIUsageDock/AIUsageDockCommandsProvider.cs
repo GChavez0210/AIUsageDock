@@ -27,7 +27,7 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
     {
         Id = "AIUsageDock";
         DisplayName = "AI Usage Dock";
-        Icon = new IconInfo("\uE950");
+        Icon = IconHelpers.FromRelativePath("Assets/Square44x44Logo.png");
         _selection = selection;
         Settings = selection.ToolkitSettings;
         _selection.Changed += OnSelectionChanged;
