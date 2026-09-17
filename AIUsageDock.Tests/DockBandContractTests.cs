@@ -8,7 +8,9 @@ public sealed class DockBandContractTests
     [Fact]
     public void EveryDockBandHasAStableCommandId()
     {
-        using var provider = new AIUsageDockCommandsProvider();
+        using var provider = new AIUsageDockCommandsProvider(
+            new ProviderSelectionSettings(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")),
+            startTimer: false);
 
         var bands = provider.GetDockBands();
 

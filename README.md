@@ -44,6 +44,8 @@ The install script builds and tests the extension, registers its staged package 
 
 Enabling **AI Usage Dock** in the Extensions list only enables the provider; it does not place anything on the Dock. Add the three individual bands—**Codex usage**, **Claude usage**, and **Antigravity usage**—under Command Palette **Settings → Dock → Bands**, or through **Edit Dock → +** on the Dock itself.
 
+Use **Select subscriptions** in the extension, or its settings in Command Palette's installed extensions list, to turn off services you do not use. Disabled services are hidden from the extension's commands and available Dock bands and are not refreshed. All three are enabled by default; your choices are saved locally.
+
 Place the AI usage bands **after** the built-in **Performance Monitor** band (CPU, memory, network, GPU). Extension bands load a moment after the built-ins, and Command Palette 0.100 rebuilds every band that follows a late insertion; the Performance Monitor widget loses its sampler when that happens and freezes at 0%. With the AI usage bands positioned after it, both keep updating.
 
 ## Detail pages
@@ -83,3 +85,7 @@ AIUsageDock.Tests/
 ```
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for projects consulted while designing the extension.
+
+## About
+
+AIUsageDock by Gabriel Chavez - Developed in Mexico with love
