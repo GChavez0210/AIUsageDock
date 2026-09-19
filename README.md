@@ -46,6 +46,14 @@ The three bands sit on the Dock next to the built-in Performance Monitor. Select
 
 The install script builds and tests the extension, registers its staged package for the current user in development mode, and restarts Command Palette. It does not add a development certificate to a trust store.
 
+## Continuous integration and releases
+
+`.github/workflows/build.yml` builds and tests the extension on `windows-latest` for every push to `main` and every pull request, then packs a signed `AIUsageDock.msix` with `makeappx` and uploads it, together with the certificate's public half, as build artifacts.
+
+Signing uses the `SIGNING_CERTIFICATE` repository secret, a base64 encoded PFX whose subject is `CN=AIUsageDock-Dev` so it matches the `Publisher` in `Package.appxmanifest`, with its password in `SIGNING_CERTIFICATE_PASSWORD`. Without those secrets the workflow generates a throwaway self-signed certificate, which still produces an installable package but means importing `AIUsageDock.cer` into **Local Machine → Trusted People** before Windows accepts it.
+
+Pushing a `v*` tag, for example `v0.2.0`, stamps that version into the package identity and publishes a GitHub release carrying the `.msix` and the `.cer`.
+
 Enabling **AI Usage Dock** in the Extensions list only enables the provider; it does not place anything on the Dock. Add the three individual bands—**Codex usage**, **Claude usage**, and **Antigravity usage**—under Command Palette **Settings → Dock → Bands**, or through **Edit Dock → +** on the Dock itself.
 
 Use **Select subscriptions** in the extension, or its settings in Command Palette's installed extensions list, to turn off services you do not use. Disabled services are hidden from the extension's commands and available Dock bands and are not refreshed. All three are enabled by default; your choices are saved locally.
