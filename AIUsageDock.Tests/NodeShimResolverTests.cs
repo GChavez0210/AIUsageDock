@@ -53,6 +53,42 @@ public sealed class NodeShimResolverTests
     }
 
     [Fact]
+    public void ShimKeepsInterpreterOptionsThatCarryASeparateValue()
+    {
+        WithTemporaryDirectory(root =>
+        {
+            CreateFile(root, "node.exe");
+            var script = CreateFile(root, "node_modules", "tool", "cli.js");
+            var relative = Relative("node_modules", "tool", "cli.js");
+            var shim = CreateShim(root, "tool.cmd",
+                "@ECHO off",
+                $"\"%dp0%\\node.exe\" --stack-trace-limit 50 -r esm \"%dp0%\\{relative}\" %*");
+
+            Assert.True(NodeShimResolver.TryExpand(shim, out _, out var leadingArguments));
+            Assert.Equal(["--stack-trace-limit", "50", "-r", "esm", script], leadingArguments);
+        });
+    }
+
+    [Fact]
+    public void ShimIsNotExpandedWhenAnInterpreterOptionHoldsAVariable()
+    {
+        WithTemporaryDirectory(root =>
+        {
+            CreateFile(root, "node.exe");
+            CreateFile(root, "node_modules", "tool", "cli.js");
+            var relative = Relative("node_modules", "tool", "cli.js");
+            var shim = CreateShim(root, "tool.cmd",
+                "@ECHO off",
+                $"\"%dp0%\\node.exe\" %NODE_OPTIONS% \"%dp0%\\{relative}\" %*");
+
+            Assert.False(NodeShimResolver.TryExpand(shim, out _, out _));
+
+            var startInfo = ProcessHelpers.CreateStartInfo(shim, "--version");
+            Assert.Contains("cmd", Path.GetFileName(startInfo.FileName), StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
     public void ShimIsNotExpandedWhenTheScriptIsMissing()
     {
         WithTemporaryDirectory(root =>

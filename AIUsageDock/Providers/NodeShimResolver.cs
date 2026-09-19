@@ -16,6 +16,7 @@ internal static class NodeShimResolver
 {
     private static readonly string[] ScriptExtensions = [".js", ".cjs", ".mjs"];
     private static readonly string[] ShimDirectoryVariables = ["%dp0%", "%~dp0"];
+    private static readonly string[] InterpreterNames = ["node", "node.exe"];
 
     public static bool TryExpand(string shimPath, out string interpreter, out IReadOnlyList<string> leadingArguments) =>
         TryExpand(shimPath, ReadAllLinesOrNull, File.Exists, FindNodeOnPath, out interpreter, out leadingArguments);
@@ -64,8 +65,21 @@ internal static class NodeShimResolver
                 }
             }
 
-            var arguments = new List<string>();
-            arguments.AddRange(InterpreterOptions(tokens, scriptIndex));
+            // Everything the launcher puts between node and the script is an option for
+            // node itself. Reading it forward from the interpreter keeps an option that
+            // takes a separate value, such as -r esm, together with that value.
+            var interpreterIndex = IndexOfInterpreter(tokens, scriptIndex, directory);
+            if (interpreterIndex < 0)
+            {
+                continue;
+            }
+
+            var arguments = InterpreterOptions(tokens, interpreterIndex, scriptIndex);
+            if (arguments is null)
+            {
+                continue;
+            }
+
             arguments.Add(script!);
             arguments.AddRange(ScriptOptions(tokens, scriptIndex));
 
@@ -101,19 +115,52 @@ internal static class NodeShimResolver
         return -1;
     }
 
-    /// <summary>Flags the launcher passes to Node itself, such as --max-old-space-size.</summary>
-    private static IEnumerable<string> InterpreterOptions(IReadOnlyList<string> tokens, int scriptIndex)
+    /// <summary>Finds the node reference the launcher runs the script with, nearest to the script.</summary>
+    private static int IndexOfInterpreter(IReadOnlyList<string> tokens, int scriptIndex, string directory)
     {
-        var first = scriptIndex;
-        while (first > 0 && IsPlainOption(tokens[first - 1]))
+        for (var index = scriptIndex - 1; index >= 0; index--)
         {
-            first--;
+            if (IsInterpreterToken(tokens[index], directory))
+            {
+                return index;
+            }
         }
 
-        for (var index = first; index < scriptIndex; index++)
+        return -1;
+    }
+
+    private static bool IsInterpreterToken(string token, string directory)
+    {
+        // npm's launcher picks between a bundled node and one on PATH, then runs %_prog%.
+        if (token.Equals("%_prog%", StringComparison.OrdinalIgnoreCase))
         {
-            yield return tokens[index];
+            return true;
         }
+
+        var name = Path.GetFileName(ExpandShimDirectory(token, directory) ?? token);
+        return InterpreterNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Options the launcher passes to node itself, or null when one of them holds a
+    /// variable this parser cannot expand.
+    /// </summary>
+    private static List<string>? InterpreterOptions(IReadOnlyList<string> tokens, int interpreterIndex, int scriptIndex)
+    {
+        var options = new List<string>();
+        for (var index = interpreterIndex + 1; index < scriptIndex; index++)
+        {
+            // Leave the line to cmd.exe rather than launching node without an argument
+            // it needs.
+            if (tokens[index].Contains('%'))
+            {
+                return null;
+            }
+
+            options.Add(tokens[index]);
+        }
+
+        return options;
     }
 
     /// <summary>Fixed arguments the launcher appends before the caller's own, up to <c>%*</c>.</summary>
@@ -130,9 +177,6 @@ internal static class NodeShimResolver
             yield return token;
         }
     }
-
-    private static bool IsPlainOption(string token) =>
-        token.StartsWith('-') && !token.Contains('%');
 
     /// <summary>Resolves a <c>%dp0%</c> or <c>%~dp0</c> prefixed path against the launcher's own directory.</summary>
     private static string? ExpandShimDirectory(string token, string directory)
