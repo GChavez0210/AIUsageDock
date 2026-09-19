@@ -7,6 +7,13 @@ namespace AIUsageDock.Providers;
 internal sealed class AntigravityUsageProvider : IUsageProvider
 {
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(1);
+    // agy checks for updates every 16 minutes and hands the download to a detached copy
+    // of itself. That copy asks Windows for a console of its own, so the terminal host
+    // draws a window for it no matter how quietly this process started the parent.
+    // The interactive agy the user runs still updates on its own schedule.
+    internal static readonly IReadOnlyDictionary<string, string> CliEnvironment =
+        new Dictionary<string, string> { ["AGY_CLI_DISABLE_AUTO_UPDATE"] = "true" };
+
     private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(20);
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly string _accountsPath;
@@ -52,7 +59,8 @@ internal sealed class AntigravityUsageProvider : IUsageProvider
                     executable,
                     ["-p", "/usage", "--mode", "plan", "--output-format", "json", "--print-timeout", "15s"],
                     ProcessTimeout,
-                    cancellationToken);
+                    cancellationToken,
+                    CliEnvironment);
 
                 if (result.ExitCode != 0)
                 {

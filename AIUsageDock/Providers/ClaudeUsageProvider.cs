@@ -9,6 +9,10 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
 {
     private static readonly TimeSpan FreshCacheAge = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan CommandThrottle = TimeSpan.FromSeconds(30);
+    // A usage read is not the moment to have Claude Code replace itself in the background.
+    internal static readonly IReadOnlyDictionary<string, string> CliEnvironment =
+        new Dictionary<string, string> { ["DISABLE_AUTOUPDATER"] = "1" };
+
     private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(15);
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly string _configDirectory;
@@ -474,7 +478,8 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
                 executable,
                 new[] { "-p", "/usage", "--output-format", "json", "--no-session-persistence" },
                 ProcessTimeout,
-                cancellationToken);
+                cancellationToken,
+                CliEnvironment);
 
             if (result.ExitCode != 0)
             {

@@ -5,7 +5,18 @@ namespace AIUsageDock.Providers;
 
 internal static class ProcessHelpers
 {
-    public static ProcessStartInfo CreateStartInfo(string executable, params string[] arguments)
+    public static ProcessStartInfo CreateStartInfo(string executable, params string[] arguments) =>
+        CreateStartInfo(executable, arguments, environment: null);
+
+    /// <param name="environment">
+    /// Variables to set for the child on top of the inherited environment. Providers use
+    /// this to switch off CLI side effects that have nothing to do with reading usage,
+    /// such as background self-updaters.
+    /// </param>
+    public static ProcessStartInfo CreateStartInfo(
+        string executable,
+        IReadOnlyList<string> arguments,
+        IReadOnlyDictionary<string, string>? environment)
     {
         ProcessStartInfo startInfo;
         var extension = Path.GetExtension(executable);
@@ -48,6 +59,14 @@ internal static class ProcessHelpers
         }
 
         startInfo.WorkingDirectory = Path.GetTempPath();
+        if (environment is not null)
+        {
+            foreach (var (name, value) in environment)
+            {
+                startInfo.Environment[name] = value;
+            }
+        }
+
         return startInfo;
     }
 
@@ -55,12 +74,13 @@ internal static class ProcessHelpers
         string executable,
         IReadOnlyList<string> arguments,
         TimeSpan timeout,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linked.CancelAfter(timeout);
 
-        using var process = new Process { StartInfo = CreateStartInfo(executable, arguments.ToArray()) };
+        using var process = new Process { StartInfo = CreateStartInfo(executable, arguments, environment) };
         process.StartInfo.RedirectStandardInput = false;
         process.Start();
 

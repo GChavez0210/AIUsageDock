@@ -12,6 +12,8 @@ The extension delegates authentication and usage retrieval to the installed CLIs
 - Claude Code: reads the service-reported `cachedUsageUtilization` snapshot and the non-secret `oauthAccount` profile maintained by Claude Code in `~/.claude.json`. When the snapshot is stale, it asks `claude -p "/usage" --output-format json` for a refresh and then rereads the cache.
 - Antigravity: calls `agy -p "/usage" --mode plan --output-format json`, which returns quota data without consuming tokens, and reads the active account name from `~/.gemini/google_accounts.json`.
 
+The Claude and Antigravity calls run with the CLI's self-updater switched off (`DISABLE_AUTOUPDATER=1` and `AGY_CLI_DISABLE_AUTO_UPDATE=true`). Those updaters launch a detached copy of the CLI with its own console, which Windows draws as a terminal window in the middle of a refresh. The CLIs you run yourself keep updating as usual.
+
 It never reads or stores OAuth access tokens and never calls private provider endpoints directly. The profile files it reads contain only account metadata (email, plan, organization); credentials live in separate files the extension does not open.
 
 ## Screenshots
