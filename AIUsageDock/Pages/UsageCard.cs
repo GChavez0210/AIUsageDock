@@ -10,7 +10,8 @@ namespace AIUsageDock.Pages;
 /// </summary>
 internal static class UsageCard
 {
-    private const int LowThresholdPercent = 20;
+    private const int LowThresholdPercent = 25;
+    private const int CriticalThresholdPercent = 10;
 
     public static string Build(UsageResult result, string providerName, string providerId, DateTimeOffset now)
     {
@@ -166,15 +167,16 @@ internal static class UsageCard
         ["items"] = new JsonArray(),
     };
 
+    // Green while healthy, yellow when running low, red when almost gone.
     private static string BarStyle(UsageWindow window, int remaining) =>
-        window.IsLocked || remaining <= 0 ? "attention"
+        window.IsLocked || remaining < CriticalThresholdPercent ? "attention"
         : remaining < LowThresholdPercent ? "warning"
-        : "accent";
+        : "good";
 
-    private static string? BarColorName(UsageWindow window, int remaining) =>
-        window.IsLocked || remaining <= 0 ? "Attention"
+    private static string BarColorName(UsageWindow window, int remaining) =>
+        window.IsLocked || remaining < CriticalThresholdPercent ? "Attention"
         : remaining < LowThresholdPercent ? "Warning"
-        : null;
+        : "Good";
 
     private static IEnumerable<string> DescribeFlags(UsageWindow window, int remaining)
     {
@@ -185,6 +187,10 @@ internal static class UsageCard
         else if (remaining <= 0)
         {
             yield return "Exhausted";
+        }
+        else if (remaining < CriticalThresholdPercent)
+        {
+            yield return "Almost out";
         }
         else if (remaining < LowThresholdPercent)
         {
