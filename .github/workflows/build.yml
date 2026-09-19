@@ -113,11 +113,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $pfx = Join-Path (Get-Location) 'artifacts/signing.pfx'
+          $cer = Join-Path (Get-Location) 'artifacts/msix/AIUsageDock.cer'
 
           if ($env:SIGNING_CERTIFICATE) {
             Write-Host 'Signing with the certificate from repository secrets.'
             [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE))
             $password = $env:SIGNING_CERTIFICATE_PASSWORD
+            $selfSigned = $false
           } else {
             Write-Host 'No SIGNING_CERTIFICATE secret set, generating a self-signed certificate.'
             Write-Host 'Installing the package then needs AIUsageDock.cer trusted first.'
@@ -131,19 +133,29 @@ jobs:
               -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}Subject Type:End Entity')
             $password = [Guid]::NewGuid().ToString('N')
             Export-PfxCertificate -Cert $certificate -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+            $selfSigned = $true
           }
 
           # Ship the public half so a user can trust it before installing.
           $loaded = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $password)
-          [IO.File]::WriteAllBytes((Join-Path (Get-Location) 'artifacts/msix/AIUsageDock.cer'), $loaded.Export('Cert'))
+          [IO.File]::WriteAllBytes($cer, $loaded.Export('Cert'))
 
           & $env:SIGNTOOL sign /fd SHA256 /f $pfx /p $password artifacts/msix/AIUsageDock.msix
           if ($LASTEXITCODE -ne 0) { throw "signtool sign failed with exit code $LASTEXITCODE" }
 
-          & $env:SIGNTOOL verify /pa artifacts/msix/AIUsageDock.msix
-          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed with exit code $LASTEXITCODE" }
-
           Remove-Item $pfx -Force
+
+          if ($selfSigned) {
+            # signtool verify applies the Authenticode policy, which needs a trusted
+            # chain. Trust the build certificate on this throwaway runner so the check
+            # still means something: it is the same import a user does before
+            # installing the package.
+            Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+            Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+          }
+
+          & $env:SIGNTOOL verify /pa /v artifacts/msix/AIUsageDock.msix
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed with exit code $LASTEXITCODE" }
 
       - name: Upload MSIX
         uses: actions/upload-artifact@v4
