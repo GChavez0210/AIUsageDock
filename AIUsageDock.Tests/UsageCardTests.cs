@@ -81,7 +81,9 @@ public sealed class UsageCardTests
 
     [Theory]
     [InlineData(60, "good", "Good", null)]
+    [InlineData(75.4, "good", "Good", null)]
     [InlineData(76, "warning", "Warning", "Running low")]
+    [InlineData(90.4, "warning", "Warning", "Running low")]
     [InlineData(91, "attention", "Attention", "Almost out")]
     public void ColorsBarsByRemainingTier(double used, string style, string color, string? flag)
     {
@@ -93,9 +95,12 @@ public sealed class UsageCardTests
             "codex app-server");
 
         var body = Body(UsageCard.Build(UsageResult.Success(snapshot), "Codex", "codex", Now));
-        var remaining = (100 - (int)used).ToString();
 
-        Assert.Equal([(remaining, style), (((int)used).ToString(), "emphasis")], Bars(body)[0]);
+        // Same math as UsageCard.AppendWindow: round the remaining share, the empty side is the rest.
+        var filled = (int)Math.Round(100d - used);
+        var remaining = filled.ToString();
+
+        Assert.Equal([(remaining, style), ((100 - filled).ToString(), "emphasis")], Bars(body)[0]);
 
         var percent = AllBlocks(body).Single(block => block["text"]?.GetValue<string>() == $"{remaining}% left");
         Assert.Equal(color, percent["color"]!.GetValue<string>());
