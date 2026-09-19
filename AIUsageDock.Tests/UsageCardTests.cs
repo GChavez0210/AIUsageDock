@@ -37,12 +37,12 @@ public sealed class UsageCardTests
         // Session sorts before the week regardless of label order.
         Assert.True(texts.IndexOf("Session · 5h window") < texts.IndexOf("Week (all models) · 7d window"));
 
-        // A full session is a single accent column; the week splits 78 / 22.
+        // A full session is a single green column; the week splits 78 / 22.
         var bars = Bars(body);
         Assert.Equal(2, bars.Count);
         Assert.Single(bars[0]);
-        Assert.Equal(("100", "accent"), bars[0][0]);
-        Assert.Equal([("78", "accent"), ("22", "emphasis")], bars[1]);
+        Assert.Equal(("100", "good"), bars[0][0]);
+        Assert.Equal([("78", "good"), ("22", "emphasis")], bars[1]);
 
         var facts = body.OfType<JsonObject>().Single(item => item["type"]!.GetValue<string>() == "FactSet")["facts"]!.AsArray();
         Assert.Equal("Plan", facts[0]!["title"]!.GetValue<string>());
@@ -77,6 +77,43 @@ public sealed class UsageCardTests
 
         var stale = body.OfType<JsonObject>().First(item => item["type"]!.GetValue<string>() == "Container");
         Assert.Equal("Warning", stale["style"]!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData(60, "good", "Good", null)]
+    [InlineData(75.4, "good", "Good", null)]
+    [InlineData(76, "warning", "Warning", "Running low")]
+    [InlineData(90.4, "warning", "Warning", "Running low")]
+    [InlineData(91, "attention", "Attention", "Almost out")]
+    public void ColorsBarsByRemainingTier(double used, string style, string color, string? flag)
+    {
+        var snapshot = new UsageSnapshot(
+            "Codex",
+            "ChatGPT Plus",
+            [new UsageWindow(UsageWindowKind.Session, "Session", used, Now.AddHours(1), 300)],
+            Now,
+            "codex app-server");
+
+        var body = Body(UsageCard.Build(UsageResult.Success(snapshot), "Codex", "codex", Now));
+
+        // Same math as UsageCard.AppendWindow: round the remaining share, the empty side is the rest.
+        var filled = (int)Math.Round(100d - used);
+        var remaining = filled.ToString();
+
+        Assert.Equal([(remaining, style), ((100 - filled).ToString(), "emphasis")], Bars(body)[0]);
+
+        var percent = AllBlocks(body).Single(block => block["text"]?.GetValue<string>() == $"{remaining}% left");
+        Assert.Equal(color, percent["color"]!.GetValue<string>());
+
+        var texts = AllText(body);
+        if (flag is null)
+        {
+            Assert.DoesNotContain(texts, text => text.Contains("low", StringComparison.OrdinalIgnoreCase) || text.Contains("out", StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            Assert.Contains(texts, text => text.StartsWith($"{flag} · Resets in 1h · ", StringComparison.Ordinal));
+        }
     }
 
     [Theory]
@@ -117,11 +154,15 @@ public sealed class UsageCardTests
     private static JsonArray Body(string json) => JsonNode.Parse(json)!["body"]!.AsArray();
 
     /// <summary>Every TextBlock's text, in document order, including nested ones.</summary>
-    private static List<string> AllText(JsonNode node)
+    private static List<string> AllText(JsonNode node) =>
+        AllBlocks(node).Select(block => block["text"]!.GetValue<string>()).ToList();
+
+    /// <summary>Every TextBlock, in document order, including nested ones.</summary>
+    private static List<JsonObject> AllBlocks(JsonNode node)
     {
-        var texts = new List<string>();
+        var blocks = new List<JsonObject>();
         Walk(node);
-        return texts;
+        return blocks;
 
         void Walk(JsonNode? current)
         {
@@ -130,7 +171,7 @@ public sealed class UsageCardTests
                 case JsonObject obj:
                     if (obj["type"]?.GetValue<string>() == "TextBlock")
                     {
-                        texts.Add(obj["text"]!.GetValue<string>());
+                        blocks.Add(obj);
                     }
 
                     foreach (var property in obj)
