@@ -54,6 +54,19 @@ Signing uses the `SIGNING_CERTIFICATE` repository secret, a base64 encoded PFX w
 
 Pushing a `v*` tag, for example `v0.2.0`, stamps that version into the package identity and publishes a GitHub release carrying the `.msix` and the `.cer`.
 
+To build the same signed package locally, run `./build-release.ps1`; it writes `AIUsageDock-<version>-x64.msix` and `AIUsageDock-Dev.cer` to `dist\`, creating a self-signed `CN=AIUsageDock-Dev` certificate in your user store the first time.
+
+## Install a release
+
+Download the `.msix` and `.cer` from the [Releases](https://github.com/GChavez0210/AIUsageDock/releases) page, trust the certificate once, then install (elevated PowerShell):
+
+```powershell
+Import-Certificate -FilePath .\AIUsageDock.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+Add-AppxPackage .\AIUsageDock.msix
+```
+
+Restart Command Palette afterwards and enable the bands under **Settings → Dock → Bands**.
+
 Enabling **AI Usage Dock** in the Extensions list only enables the provider; it does not place anything on the Dock. Add the three individual bands—**Codex usage**, **Claude usage**, and **Antigravity usage**—under Command Palette **Settings → Dock → Bands**, or through **Edit Dock → +** on the Dock itself.
 
 Use **Select subscriptions** in the extension, or its settings in Command Palette's installed extensions list, to turn off services you do not use. Disabled services are hidden from the extension's commands and available Dock bands and are not refreshed. All three are enabled by default; your choices are saved locally.

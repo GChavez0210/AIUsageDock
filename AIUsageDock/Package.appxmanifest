@@ -7,7 +7,7 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap uap3 com rescap">
 
-  <Identity Name="Gabox.AIUsageDock" Publisher="CN=AIUsageDock-Dev" Version="0.2.0.0" />
+  <Identity Name="Gabox.AIUsageDock" Publisher="CN=AIUsageDock-Dev" Version="1.0.0.0" />
 
   <Properties>
     <DisplayName>AI Usage Dock</DisplayName>
