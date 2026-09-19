@@ -13,10 +13,30 @@ internal static class ProcessHelpers
         if (extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(".bat", StringComparison.OrdinalIgnoreCase))
         {
-            startInfo = NewBase(Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe");
-            // ArgumentList escapes embedded quotes for CreateProcess. cmd.exe needs the
-            // command following /c as one raw, outer-quoted string instead.
-            startInfo.Arguments = $"/d /s /c \"{BuildCmdCommand(executable, arguments)}\"";
+            // cmd.exe is a console subsystem process, so Windows gives it a console even
+            // under CreateNoWindow and the terminal host can flash a window around it.
+            // An npm launcher only exists to find node.exe and a script, so do that here
+            // and skip the shell entirely.
+            if (NodeShimResolver.TryExpand(executable, out var interpreter, out var leadingArguments))
+            {
+                startInfo = NewBase(interpreter);
+                foreach (var argument in leadingArguments)
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
+
+                foreach (var argument in arguments)
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
+            }
+            else
+            {
+                startInfo = NewBase(Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe");
+                // ArgumentList escapes embedded quotes for CreateProcess. cmd.exe needs the
+                // command following /c as one raw, outer-quoted string instead.
+                startInfo.Arguments = $"/d /s /c \"{BuildCmdCommand(executable, arguments)}\"";
+            }
         }
         else
         {

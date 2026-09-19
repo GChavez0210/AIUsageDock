@@ -1,0 +1,199 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # Must match the Publisher in Package.appxmanifest, or Windows rejects the signature.
+  PACKAGE_PUBLISHER: CN=AIUsageDock-Dev
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore AIUsageDock/AIUsageDock.csproj
+
+      - name: Build
+        run: dotnet build AIUsageDock/AIUsageDock.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test AIUsageDock.Tests/AIUsageDock.Tests.csproj -c Release
+
+      - name: Publish
+        run: >
+          dotnet publish AIUsageDock/AIUsageDock.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:GenerateAppxPackageOnBuild=false
+          -o artifacts/publish
+
+      - name: Stage package payload
+        shell: pwsh
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = 'artifacts/staging'
+          New-Item -ItemType Directory -Path $staging, 'artifacts/msix' -Force | Out-Null
+          Copy-Item 'artifacts/publish/*' $staging -Recurse -Force
+
+          New-Item -ItemType Directory -Path "$staging/Assets" -Force | Out-Null
+          Copy-Item 'AIUsageDock/Assets/*' "$staging/Assets" -Recurse -Force
+
+          # The app extension declares PublicFolder="Public", which has to exist in the
+          # package. makeappx skips empty directories, so the folder needs a file.
+          New-Item -ItemType Directory -Path "$staging/Public" -Force | Out-Null
+          Set-Content "$staging/Public/README.txt" 'Public folder for the Command Palette app extension.'
+
+          $manifestPath = Join-Path (Get-Location) "$staging/AppxManifest.xml"
+          Copy-Item 'AIUsageDock/Package.appxmanifest' $manifestPath -Force
+          [xml]$manifest = Get-Content $manifestPath
+          $identity = $manifest.Package.Identity
+
+          # The payload is win-x64, so say so rather than shipping a neutral package.
+          $identity.SetAttribute('ProcessorArchitecture', 'x64')
+
+          # A tag drives the package version; every other build keeps the manifest's own.
+          if ($env:REF_TYPE -eq 'tag' -and $env:REF_NAME -match '^v(\d+)\.(\d+)\.(\d+)$') {
+            $identity.Version = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+          }
+
+          $manifest.Save($manifestPath)
+          Write-Host "Packaging $($identity.Name) $($identity.Version) ($($identity.ProcessorArchitecture))"
+          Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_VERSION=$($identity.Version)"
+
+      - name: Locate Windows SDK tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'C:\Program Files (x86)\Windows Kits\10\bin'
+          $sdk = Get-ChildItem $root -Directory |
+            Where-Object { $_.Name -match '^10\.' -and (Test-Path (Join-Path $_.FullName 'x64\makeappx.exe')) } |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1
+          if (-not $sdk) { throw "No Windows SDK with makeappx.exe found under $root" }
+          $tools = Join-Path $sdk.FullName 'x64'
+          Write-Host "Using Windows SDK $($sdk.Name)"
+          Add-Content -Path $env:GITHUB_ENV -Value "MAKEAPPX=$tools\makeappx.exe"
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNTOOL=$tools\signtool.exe"
+
+      - name: Pack MSIX
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & $env:MAKEAPPX pack /d artifacts/staging /p artifacts/msix/AIUsageDock.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "makeappx pack failed with exit code $LASTEXITCODE" }
+
+      - name: Sign MSIX
+        shell: pwsh
+        env:
+          SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path (Get-Location) 'artifacts/signing.pfx'
+          $cer = Join-Path (Get-Location) 'artifacts/msix/AIUsageDock.cer'
+
+          if ($env:SIGNING_CERTIFICATE) {
+            Write-Host 'Signing with the certificate from repository secrets.'
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE))
+            $password = $env:SIGNING_CERTIFICATE_PASSWORD
+            $selfSigned = $false
+          } else {
+            Write-Host 'No SIGNING_CERTIFICATE secret set, generating a self-signed certificate.'
+            Write-Host 'Installing the package then needs AIUsageDock.cer trusted first.'
+            $certificate = New-SelfSignedCertificate `
+              -Type Custom `
+              -Subject $env:PACKAGE_PUBLISHER `
+              -KeyUsage DigitalSignature `
+              -FriendlyName 'AI Usage Dock build certificate' `
+              -CertStoreLocation 'Cert:\CurrentUser\My' `
+              -NotAfter (Get-Date).AddYears(5) `
+              -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}Subject Type:End Entity')
+            $password = [Guid]::NewGuid().ToString('N')
+            Export-PfxCertificate -Cert $certificate -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+            $selfSigned = $true
+          }
+
+          # Ship the public half so a user can trust it before installing.
+          $loaded = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $password)
+          [IO.File]::WriteAllBytes($cer, $loaded.Export('Cert'))
+
+          & $env:SIGNTOOL sign /fd SHA256 /f $pfx /p $password artifacts/msix/AIUsageDock.msix
+          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed with exit code $LASTEXITCODE" }
+
+          Remove-Item $pfx -Force
+
+          if ($selfSigned) {
+            # signtool verify applies the Authenticode policy, which needs a trusted
+            # chain. Trust the build certificate on this throwaway runner so the check
+            # still means something: it is the same import a user does before
+            # installing the package.
+            Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+            Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+          }
+
+          & $env:SIGNTOOL verify /pa /v artifacts/msix/AIUsageDock.msix
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed with exit code $LASTEXITCODE" }
+
+      - name: Upload MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIUsageDock-msix
+          path: artifacts/msix/
+          if-no-files-found: error
+
+      - name: Upload unpackaged build
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIUsageDock-unpackaged
+          path: artifacts/publish/
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = @(
+            "AI Usage Dock $env:PACKAGE_VERSION",
+            '',
+            'Install `AIUsageDock.msix` and restart Command Palette, then enable the bands',
+            'under Command Palette Settings, Dock, Bands.',
+            '',
+            'If the package was signed with a build certificate rather than a trusted one,',
+            'import `AIUsageDock.cer` into Local Machine, Trusted People first, otherwise',
+            'Windows refuses the install.'
+          )
+          Set-Content -Path artifacts/release-notes.md -Value $notes -Encoding utf8
+
+          gh release create $env:REF_NAME `
+            artifacts/msix/AIUsageDock.msix `
+            artifacts/msix/AIUsageDock.cer `
+            --title $env:REF_NAME `
+            --notes-file artifacts/release-notes.md
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
