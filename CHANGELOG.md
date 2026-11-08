@@ -2,6 +2,12 @@
 
 All notable changes to AI Usage Dock. Versions match the `v*` tags and the package identity in `Package.appxmanifest`.
 
+## Unreleased
+
+### Added
+
+- Native arm64 builds. `build-and-install.ps1` and `build-release.ps1` take `-Architecture x64|arm64` and default to the OS architecture.
+
 ## 1.0.1 — 2026-09-19
 
 ### Fixed

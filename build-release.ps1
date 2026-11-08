@@ -1,7 +1,13 @@
+param(
+    # Defaults to the OS architecture. Pass -Architecture x64 or arm64 to pick one.
+    [ValidateSet("x64", "arm64")]
+    [string]$Architecture = $(if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { "arm64" } else { "x64" })
+)
+
 $ErrorActionPreference = "Stop"
 
 # Builds a signed MSIX for distribution. Output lands in .\dist:
-#   AIUsageDock-<version>-x64.msix   the package
+#   AIUsageDock-<version>-<arch>.msix   the package (arch is x64 or arm64)
 #   AIUsageDock-Dev.cer              the public cert users must trust before installing
 #
 # Signing uses a self-signed cert with subject CN=AIUsageDock-Dev (the manifest
@@ -11,7 +17,7 @@ $projectDirectory = Join-Path $PSScriptRoot "AIUsageDock"
 $project = Join-Path $projectDirectory "AIUsageDock.csproj"
 $manifestPath = Join-Path $projectDirectory "Package.appxmanifest"
 $targetFramework = "net10.0-windows10.0.26100.0"
-$runtime = "win-x64"
+$runtime = "win-$Architecture"
 $publish = Join-Path $projectDirectory "bin\Release\$targetFramework\$runtime\publish"
 $staging = Join-Path $projectDirectory "bin\msix-release-staging"
 $dist = Join-Path $PSScriptRoot "dist"
@@ -27,7 +33,7 @@ if (-not (Test-Path $makeappx) -or -not (Test-Path $signtool)) {
 [xml]$manifest = Get-Content -LiteralPath $manifestPath
 $version = $manifest.Package.Identity.Version
 $publisher = $manifest.Package.Identity.Publisher
-$packageName = "AIUsageDock-$version-x64.msix"
+$packageName = "AIUsageDock-$version-$Architecture.msix"
 
 Write-Host "[1/5] Build and test"
 & (Join-Path $PSScriptRoot "build.ps1")
@@ -50,9 +56,9 @@ Copy-Item -Path (Join-Path $projectDirectory "Assets\*") -Destination $stagingAs
 New-Item -Path (Join-Path $staging "Public") -ItemType Directory | Out-Null
 Set-Content -Path (Join-Path $staging "Public\README.txt") -Value "Public folder for the Command Palette app extension."
 
-# The payload is win-x64, so say so rather than shipping a neutral package.
+# The payload is architecture-specific, so say so rather than shipping a neutral package.
 $stagedManifest = Join-Path $staging "AppxManifest.xml"
-$manifest.Package.Identity.SetAttribute("ProcessorArchitecture", "x64")
+$manifest.Package.Identity.SetAttribute("ProcessorArchitecture", $Architecture)
 $manifest.Save($stagedManifest)
 
 Write-Host "[4/5] Pack $packageName"

@@ -78,7 +78,7 @@ Signing uses the `SIGNING_CERTIFICATE` repository secret, a base64 encoded PFX w
 
 To release: bump `Version` in `Package.appxmanifest`, add the entry to [CHANGELOG.md](CHANGELOG.md), and push a matching `v*` tag, for example `v1.0.1`. The workflow stamps the version into the package identity and publishes a GitHub release carrying the `.msix` and the `.cer`.
 
-To build the same signed package locally, run `./build-release.ps1`; it writes `AIUsageDock-<version>-x64.msix` and `AIUsageDock-Dev.cer` to `dist\`, creating a self-signed `CN=AIUsageDock-Dev` certificate in your user store the first time.
+To build the same signed package locally, run `./build-release.ps1`; it writes `AIUsageDock-<version>-<arch>.msix` (the OS architecture by default; pass `-Architecture x64` or `-Architecture arm64` to choose) and `AIUsageDock-Dev.cer` to `dist\`, creating a self-signed `CN=AIUsageDock-Dev` certificate in your user store the first time.
 
 ## Project layout
 
