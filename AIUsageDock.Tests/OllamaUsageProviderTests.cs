@@ -10,7 +10,7 @@ public sealed class OllamaUsageProviderTests
     [Fact]
     public void LegacyPlanMapsSessionAndWeeklyRemainingPercent()
     {
-        // Captured from a legacy Pro account on 2026-11-07.
+        // Legacy-plan response shape from /api/balance.
         const string json = """
         {"included":{"session":{"remaining_percent":84.23,"resets_at":"2026-11-08T10:00:00Z"},"weekly":{"remaining_percent":22.03,"resets_at":"2026-11-09T00:00:00Z"}},"purchased":{"balance_usd":0}}
         """;

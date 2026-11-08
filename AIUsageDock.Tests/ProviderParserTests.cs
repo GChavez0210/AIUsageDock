@@ -82,7 +82,7 @@ public sealed class ProviderParserTests
     [Fact]
     public void ClaudeCacheParserKeepsModelScopedLimitSeparate()
     {
-        // Shape from a Max 20x account on 2026-11-08: the "Fable only" weekly cap is a
+        // Usage-cache shape with a model-scoped cap: the "Fable only" weekly cap is a
         // weekly_scoped limit and used to be merged into "Week (all models)".
         var now = DateTimeOffset.UtcNow;
         var reset = now.AddDays(1).ToString("O");
