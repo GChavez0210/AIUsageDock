@@ -119,6 +119,7 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
         // Shared buckets first. The "limits" array may repeat them with a severity, so
         // the two sources are merged by kind rather than appended.
         var windows = new List<UsageWindow>();
+        var scoped = new List<UsageWindow>();
         AddCachedBucket(utilization, "five_hour", UsageWindowKind.Session, "Session", now, windows);
         AddCachedBucket(utilization, "seven_day", UsageWindowKind.Weekly, "Week (all models)", now, windows);
 
@@ -150,6 +151,22 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
 
                 var reset = ParseIsoDate(TryGetString(limit, "resets_at"));
                 var severity = TryGetString(limit, "severity");
+
+                // A limit scoped to one model (kind "weekly_scoped", e.g. "Fable only")
+                // is its own cap, not another report of the shared window.
+                var scopeName = ReadScopeName(limit);
+                if (scopeName is not null && kind != UsageWindowKind.Other)
+                {
+                    var period = kind switch
+                    {
+                        UsageWindowKind.Session => "Session",
+                        UsageWindowKind.Monthly => "Month",
+                        _ => "Week",
+                    };
+                    AddIfActive(scoped, new UsageWindow(kind, $"{period} ({scopeName} only)", Math.Clamp(percent, 0d, 100d), reset, DurationFor(kind), Severity: severity), now);
+                    continue;
+                }
+
                 AddIfActive(windows, new UsageWindow(kind, label, Math.Clamp(percent, 0d, 100d), reset, DurationFor(kind), Severity: severity), now);
             }
         }
@@ -164,6 +181,7 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
         // Per-model weekly caps are separate limits, not duplicates of the shared week.
         AddCachedBucket(utilization, "seven_day_opus", UsageWindowKind.Weekly, "Week (Opus)", now, shared);
         AddCachedBucket(utilization, "seven_day_sonnet", UsageWindowKind.Weekly, "Week (Sonnet)", now, shared);
+        shared.AddRange(scoped);
 
         if (shared.Count == 0)
         {
@@ -530,6 +548,32 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
         UsageWindowKind.Weekly => 10080,
         _ => null,
     };
+
+    /// <summary>
+    /// The model or surface a limit is restricted to ("Fable"), or null for a limit
+    /// that covers everything.
+    /// </summary>
+    private static string? ReadScopeName(JsonElement limit)
+    {
+        if (!limit.TryGetProperty("scope", out var scope) || scope.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var part in new[] { "model", "surface" })
+        {
+            if (scope.TryGetProperty(part, out var target) && target.ValueKind == JsonValueKind.Object)
+            {
+                var name = TryGetString(target, "display_name") ?? TryGetString(target, "id");
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    return name;
+                }
+            }
+        }
+
+        return null;
+    }
 
     private static void AddIfActive(ICollection<UsageWindow> windows, UsageWindow window, DateTimeOffset now)
     {

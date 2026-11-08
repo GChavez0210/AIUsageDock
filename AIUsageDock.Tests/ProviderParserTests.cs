@@ -80,6 +80,42 @@ public sealed class ProviderParserTests
     }
 
     [Fact]
+    public void ClaudeCacheParserKeepsModelScopedLimitSeparate()
+    {
+        // Shape from a Max 20x account on 2026-11-08: the "Fable only" weekly cap is a
+        // weekly_scoped limit and used to be merged into "Week (all models)".
+        var now = DateTimeOffset.UtcNow;
+        var reset = now.AddDays(1).ToString("O");
+        var json = $$"""
+        {
+          "cachedUsageUtilization": {
+            "fetchedAtMs": {{now.ToUnixTimeMilliseconds()}},
+            "utilization": {
+              "five_hour": null,
+              "seven_day": { "utilization": 71, "resets_at": "{{reset}}" },
+              "limits": [
+                { "kind": "weekly_all", "group": "weekly", "percent": 71, "severity": "normal", "resets_at": "{{reset}}", "scope": null, "is_active": false },
+                { "kind": "weekly_scoped", "group": "weekly", "percent": 83, "severity": "warning", "resets_at": "{{reset}}",
+                  "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null }, "is_active": true }
+              ]
+            }
+          }
+        }
+        """;
+
+        var snapshot = ClaudeUsageProvider.ParseCacheJson(json, now, out _);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(2, snapshot.Windows.Count);
+        var all = Assert.Single(snapshot.Windows, window => window.Label == "Week (all models)");
+        Assert.Equal(29, all.RemainingPercent);
+        var fable = Assert.Single(snapshot.Windows, window => window.Label == "Week (Fable only)");
+        Assert.Equal(17, fable.RemainingPercent);
+        Assert.Equal(10080, fable.DurationMinutes);
+        Assert.Equal("warning", fable.Severity);
+    }
+
+    [Fact]
     public void ClaudeCacheParserDropsExpiredBuckets()
     {
         var now = DateTimeOffset.UtcNow;
