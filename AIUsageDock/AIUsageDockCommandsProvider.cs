@@ -31,12 +31,14 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
         _selection = selection;
         Settings = selection.ToolkitSettings;
         _selection.Changed += OnSelectionChanged;
+        _selection.ApiKeyChanged += OnApiKeyChanged;
 
         _providers = providers ??
         [
             new ClaudeUsageProvider(),
             new CodexUsageProvider(),
             new AntigravityUsageProvider(),
+            new OllamaUsageProvider(() => selection.OllamaApiKey),
         ];
 
         var pages = _providers.Select(provider => new UsagePage(provider)).ToArray();
@@ -81,6 +83,9 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
 
     private void OnSelectionChanged(object? sender, EventArgs args) => RaiseItemsChanged();
 
+    // A newly saved API key should show up without waiting for the next tick.
+    private void OnApiKeyChanged(object? sender, EventArgs args) => _ = RefreshAsync(force: true);
+
     internal async Task RefreshAsync(bool force)
     {
         if (Interlocked.Exchange(ref _refreshing, 1) == 1)
@@ -105,6 +110,7 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
     {
         _refreshTimer.Dispose();
         _selection.Changed -= OnSelectionChanged;
+        _selection.ApiKeyChanged -= OnApiKeyChanged;
         foreach (var provider in _providers)
         {
             provider.Dispose();

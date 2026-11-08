@@ -6,6 +6,7 @@ All notable changes to AI Usage Dock. Versions match the `v*` tags and the packa
 
 ### Added
 
+- Ollama Cloud band. It reads `GET https://ollama.com/api/balance` with the API key from the new masked **Ollama API key** setting, which is stored in Windows Credential Manager rather than `settings.json` (type `clear` to remove it). Without a saved key it falls back to the `OLLAMA_API_KEY` environment variable. Legacy Pro/Max plans show session and weekly windows; current plans show included credits for the billing period. A 429 response's `Retry-After` is honoured even on forced refreshes.
 - Native arm64 builds. `build-and-install.ps1` and `build-release.ps1` take `-Architecture x64|arm64` and default to the OS architecture.
 
 ## 1.0.1 — 2026-09-19

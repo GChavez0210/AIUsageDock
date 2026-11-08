@@ -4,15 +4,16 @@
 <img src="AIUsageDock/Assets/AIUsageDock.svg" alt="AI Usage Dock logo" width="96">
 </p>
 
-A Windows PowerToys Command Palette extension that shows remaining Codex, Claude Code, and Antigravity subscription capacity in the Command Palette Dock.
+A Windows PowerToys Command Palette extension that shows remaining Codex, Claude Code, Antigravity, and Ollama Cloud subscription capacity in the Command Palette Dock.
 
 The extension delegates authentication and usage retrieval to the installed CLIs:
 
 - Codex: starts the native `codex app-server --stdio` executable and calls `account/read` and `account/rateLimits/read`.
 - Claude Code: reads the service-reported `cachedUsageUtilization` snapshot and the non-secret `oauthAccount` profile that Claude Code maintains in `~/.claude.json`. When the snapshot is stale, it asks `claude -p "/usage" --output-format json` for a refresh and rereads the cache.
 - Antigravity: calls `agy -p "/usage" --mode plan --output-format json`, which returns quota data without consuming tokens, and reads the active account name from `~/.gemini/google_accounts.json`.
+- Ollama Cloud: calls the documented `GET https://ollama.com/api/balance` endpoint with the API key entered in the extension settings (stored in Windows Credential Manager) or, failing that, the `OLLAMA_API_KEY` environment variable. Legacy Pro/Max plans report session and weekly windows; current plans report included credits for the billing period.
 
-It never reads or stores OAuth access tokens and never calls provider endpoints directly. The profile files it reads contain only account metadata; credentials live in separate files the extension does not open.
+It never reads or stores OAuth access tokens. Ollama Cloud is the one provider called directly, because it has no CLI usage command; its API key is kept in Windows Credential Manager, never in `settings.json`. The profile files it reads contain only account metadata; credentials live in separate files the extension does not open.
 
 See [QUIRKS.md](QUIRKS.md) for the non-obvious behaviour of the extension, Command Palette, and the CLIs, and [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
@@ -28,7 +29,7 @@ The three bands sit on the Dock next to the built-in Performance Monitor. Select
 
 ## Install a release
 
-Requirements: Windows 11, PowerToys Command Palette 0.9 or newer with the Dock enabled, and a signed-in Codex, Claude Code, and/or Antigravity CLI.
+Requirements: Windows 11, PowerToys Command Palette 0.9 or newer with the Dock enabled, and a signed-in Codex, Claude Code, and/or Antigravity CLI, or an Ollama API key (create one at ollama.com/settings/keys and paste it into **Ollama API key** in the extension settings).
 
 Download the `.msix` and `.cer` from the [Releases](https://github.com/GChavez0210/AIUsageDock/releases) page, trust the certificate once, then install (elevated PowerShell):
 
@@ -37,7 +38,7 @@ Import-Certificate -FilePath .\AIUsageDock.cer -CertStoreLocation Cert:\LocalMac
 Add-AppxPackage .\AIUsageDock.msix
 ```
 
-Restart Command Palette, then add the bands you want under **Settings → Dock → Bands**: **Codex usage**, **Claude usage**, and **Antigravity usage**. Enabling the extension in the Extensions list does not add bands by itself. Keep the AI bands after the built-in Performance Monitor band; [QUIRKS.md](QUIRKS.md#place-the-ai-bands-after-the-performance-monitor-band) explains why.
+Restart Command Palette, then add the bands you want under **Settings → Dock → Bands**: **Codex usage**, **Claude usage**, **Antigravity usage**, and **Ollama Cloud usage**. Enabling the extension in the Extensions list does not add bands by itself. Keep the AI bands after the built-in Performance Monitor band; [QUIRKS.md](QUIRKS.md#place-the-ai-bands-after-the-performance-monitor-band) explains why.
 
 Use **Select subscriptions** in the extension, or its settings in Command Palette's installed extensions list, to turn off services you do not use. Disabled services are hidden from the extension's commands and Dock bands and are not refreshed.
 
@@ -50,9 +51,10 @@ Each band shows remaining capacity for its service: `100%` is a full window and 
   - Claude: plan, account, organization and role for team plans, billing type, subscription date, rate-limit tier when it is not the default, and extra-usage spend against the monthly cap. Per-model weekly caps appear as their own windows when the service reports them.
   - Codex: ChatGPT plan, account email, sign-in method, and credit balance.
   - Antigravity: active Google account, plus a plan or tier if a future CLI adds one to the quota payload.
+  - Ollama Cloud: plan (`Legacy` for session/weekly plans), included credits left for the period on current plans, and purchased credit balance.
 - A footer with the data source and how long ago it was read.
 
-When a provider cannot be read, the page names the cause (CLI missing, not signed in, timed out, no usage data) and says what to do about it.
+When a provider cannot be read, the page names the cause (CLI missing, not signed in, API key missing or rejected, timed out, no usage data) and says what to do about it.
 
 ## Build from source
 
@@ -87,7 +89,7 @@ AIUsageDock/
   Bands/       Dock presentation
   Models/      Shared usage model
   Pages/       Command Palette detail pages
-  Providers/   Claude, Codex, and Antigravity CLI adapters
+  Providers/   Claude, Codex, and Antigravity CLI adapters, Ollama Cloud HTTP adapter
 AIUsageDock.Tests/
   Provider parser and process launch regression tests
 ```

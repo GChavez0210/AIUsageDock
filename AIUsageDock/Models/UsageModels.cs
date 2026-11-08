@@ -62,6 +62,7 @@ internal enum UsageFailureReason
     None,
     CliUnavailable,
     NotSignedIn,
+    MissingApiKey,
     TimedOut,
     InvalidData,
     ProcessFailed,

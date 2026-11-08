@@ -254,6 +254,9 @@ internal static class UsageCard
             UsageFailureReason.NotSignedIn => (
                 $"{providerName} is not signed in",
                 $"Run `{SignInCommand(providerId)}` in a terminal and sign in, then use **Refresh AI usage**."),
+            UsageFailureReason.MissingApiKey => (
+                $"{providerName} API key missing or rejected",
+                $"Create an API key at ollama.com/settings/keys and paste it into **Ollama API key** in this extension's settings (or set the `{Providers.OllamaUsageProvider.ApiKeyVariable}` environment variable), then use **Refresh AI usage**."),
             UsageFailureReason.TimedOut => (
                 $"{providerName} did not respond",
                 "The CLI took too long to answer. Try **Refresh AI usage**; if it keeps happening, run the CLI once by hand to let it finish any pending update."),

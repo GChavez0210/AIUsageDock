@@ -86,6 +86,7 @@ internal sealed class UsageBand
     {
         UsageFailureReason.CliUnavailable => result.Message ?? "CLI not found",
         UsageFailureReason.NotSignedIn => "sign in with the CLI",
+        UsageFailureReason.MissingApiKey => result.Message ?? "API key not set",
         UsageFailureReason.TimedOut => "refresh timed out",
         UsageFailureReason.InvalidData => result.Message ?? "no usage data",
         UsageFailureReason.ProcessFailed => result.Message ?? "CLI refresh failed",
