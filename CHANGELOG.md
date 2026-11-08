@@ -6,8 +6,21 @@ All notable changes to AI Usage Dock. Versions match the `v*` tags and the packa
 
 ### Added
 
-- Ollama Cloud band. It reads `GET https://ollama.com/api/balance` with the API key from the new masked **Ollama API key** setting, which is stored in Windows Credential Manager rather than `settings.json` (type `clear` to remove it). Without a saved key it falls back to the `OLLAMA_API_KEY` environment variable. Legacy Pro/Max plans show session and weekly windows; current plans show included credits for the billing period. A 429 response's `Retry-After` is honoured even on forced refreshes.
+- Ollama Cloud band (shown as **Ollama**). It reads `GET https://ollama.com/api/balance` with the API key from a masked **API key** field under the Ollama toggle, which is stored in Windows Credential Manager rather than `settings.json` (type `clear` to remove it). Without a saved key it falls back to the `OLLAMA_API_KEY` environment variable. Legacy Pro/Max plans show session and weekly windows; current plans show included credits for the billing period. A 429 response's `Retry-After` is honoured even on forced refreshes.
 - Native arm64 builds. `build-and-install.ps1` and `build-release.ps1` take `-Architecture x64|arm64` and default to the OS architecture.
+- **Dock shows** dropdown under each provider toggle: **Auto** (session, else the tightest limit, as before), **Tightest limit**, or any window the provider has reported, such as **Week (Fable only) · 7d**. A chosen window that is not reported falls back to Auto. The band's `wk` figure is dropped when the band already shows a weekly window.
+- Detail pages have **Refresh** (reads usage again and redraws the page in place) and **Settings** (gear) in their command bar, so a page opened from the Dock reaches both directly.
+- The Ollama icon sits on a white tile so the black mark stays visible on a dark Dock.
+- **Refresh every** setting for the background refresh: 1, 5, 10, 15, 30 or 60 minutes.
+- **Usage bar colors** setting: keep the green/yellow/red status colours, or use the accent colour for every bar. The status container styles render as pale tints in the light theme.
+
+### Changed
+
+- Background refresh runs every 10 minutes by default instead of every minute.
+
+### Fixed
+
+- Claude's model-scoped weekly caps (`weekly_scoped` limits, shown as "Fable only" on claude.ai) appear as their own **Week (&lt;model&gt; only)** window. They were merged into **Week (all models)**, which then showed the scoped cap's percentage.
 
 ## 1.0.1 — 2026-09-19
 

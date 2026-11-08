@@ -151,6 +151,25 @@ public sealed class UsageCardTests
         Assert.Equal(expected, UsageCard.DescribeDuration(minutes));
     }
 
+    [Theory]
+    [InlineData(10)]
+    [InlineData(80)]
+    [InlineData(95)]
+    public void AccentModeUsesAccentForEveryBar(double used)
+    {
+        var snapshot = new UsageSnapshot(
+            "Codex",
+            null,
+            [new UsageWindow(UsageWindowKind.Session, "Session", used, Now.AddHours(1), 300)],
+            Now,
+            "codex app-server");
+
+        var body = Body(UsageCard.Build(UsageResult.Success(snapshot), "Codex", "codex", Now, BarColorMode.Accent));
+
+        var filled = (int)Math.Round(100d - used);
+        Assert.Equal([(filled.ToString(), "accent"), ((100 - filled).ToString(), "emphasis")], Bars(body)[0]);
+    }
+
     private static JsonArray Body(string json) => JsonNode.Parse(json)!["body"]!.AsArray();
 
     /// <summary>Every TextBlock's text, in document order, including nested ones.</summary>

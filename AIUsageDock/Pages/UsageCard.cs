@@ -8,12 +8,22 @@ namespace AIUsageDock.Pages;
 /// Renders a usage result as an Adaptive Card. The bars are two weighted columns
 /// with container styles, which the Command Palette renderer paints as filled blocks.
 /// </summary>
+internal enum BarColorMode
+{
+    /// <summary>Green, yellow or red by remaining capacity.</summary>
+    Status,
+
+    /// <summary>The theme accent for every bar. The status container styles render
+    /// as pale tints in the light theme, which some people find hard to see.</summary>
+    Accent,
+}
+
 internal static class UsageCard
 {
     private const int LowThresholdPercent = 25;
     private const int CriticalThresholdPercent = 10;
 
-    public static string Build(UsageResult result, string providerName, string providerId, DateTimeOffset now)
+    public static string Build(UsageResult result, string providerName, string providerId, DateTimeOffset now, BarColorMode barColors = BarColorMode.Status)
     {
         var body = new JsonArray();
 
@@ -23,7 +33,7 @@ internal static class UsageCard
         }
         else
         {
-            AppendSnapshot(body, result, snapshot, now);
+            AppendSnapshot(body, result, snapshot, now, barColors);
         }
 
         var card = new JsonObject
@@ -37,7 +47,7 @@ internal static class UsageCard
         return card.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
     }
 
-    private static void AppendSnapshot(JsonArray body, UsageResult result, UsageSnapshot snapshot, DateTimeOffset now)
+    private static void AppendSnapshot(JsonArray body, UsageResult result, UsageSnapshot snapshot, DateTimeOffset now, BarColorMode barColors)
     {
         body.Add(Text(
             string.IsNullOrWhiteSpace(snapshot.Plan) ? snapshot.Provider : $"{snapshot.Provider} · {snapshot.Plan}",
@@ -55,7 +65,7 @@ internal static class UsageCard
 
         foreach (var window in windows)
         {
-            AppendWindow(body, window, now);
+            AppendWindow(body, window, now, barColors);
         }
 
         if (snapshot.AccountDetails.Count > 0)
@@ -88,7 +98,7 @@ internal static class UsageCard
             separator: true));
     }
 
-    private static void AppendWindow(JsonArray body, UsageWindow window, DateTimeOffset now)
+    private static void AppendWindow(JsonArray body, UsageWindow window, DateTimeOffset now, BarColorMode barColors)
     {
         var remaining = (int)Math.Round(window.RemainingPercent);
         var duration = DescribeDuration(window.DurationMinutes);
@@ -116,7 +126,7 @@ internal static class UsageCard
             },
         });
 
-        body.Add(Bar(remaining, BarStyle(window, remaining)));
+        body.Add(Bar(remaining, barColors == BarColorMode.Accent ? "accent" : BarStyle(window, remaining)));
 
         var flags = DescribeFlags(window, remaining).ToList();
         var resetText = window.ResetsAt is { } reset

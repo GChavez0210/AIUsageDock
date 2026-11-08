@@ -10,13 +10,13 @@ namespace AIUsageDock;
 
 public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisposable
 {
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(1);
     private readonly ProviderSelectionSettings _selection;
     private readonly IUsageProvider[] _providers;
     private readonly UsageBand[] _bands;
     private readonly ICommandItem[] _usageCommands;
     private readonly ICommandItem[] _utilityCommands;
     private readonly Timer _refreshTimer;
+    private readonly bool _timerStarted;
     private int _refreshing;
 
     public AIUsageDockCommandsProvider() : this(new ProviderSelectionSettings(ProviderSelectionSettings.DefaultPath), startTimer: true)
@@ -32,6 +32,8 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
         Settings = selection.ToolkitSettings;
         _selection.Changed += OnSelectionChanged;
         _selection.ApiKeyChanged += OnApiKeyChanged;
+        _selection.DockChoiceChanged += OnDockChoiceChanged;
+        _selection.RefreshIntervalChanged += OnRefreshIntervalChanged;
 
         _providers = providers ??
         [
@@ -41,8 +43,24 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
             new OllamaUsageProvider(() => selection.OllamaApiKey),
         ];
 
-        var pages = _providers.Select(provider => new UsagePage(provider)).ToArray();
-        _bands = _providers.Zip(pages, (provider, page) => new UsageBand(provider, page)).ToArray();
+        var refreshCommand = new RefreshAllCommand(() => RefreshAsync(force: true));
+
+        // Detail pages opened from the Dock get Refresh and a gear to the settings form,
+        // so both are one step away instead of buried in Command Palette settings.
+        var pages = _providers
+            .Select(provider => new UsagePage(
+                provider,
+                () => selection.BarColors,
+                selection.ToolkitSettings.SettingsPage,
+                () => RefreshAsync(force: true)))
+            .ToArray();
+        _bands = _providers
+            .Zip(pages, (provider, page) => new UsageBand(
+                provider,
+                page,
+                () => selection.DockChoiceFor(provider.Id),
+                windows => selection.ReportWindows(provider.Id, windows)))
+            .ToArray();
 
         _usageCommands = pages
             .Select((page, index) => (ICommandItem)new CommandItem(page)
@@ -54,7 +72,7 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
 
         _utilityCommands =
         [
-            new CommandItem(new RefreshAllCommand(() => RefreshAsync(force: true)))
+            new CommandItem(refreshCommand)
             {
                 Title = "Refresh AI usage",
             },
@@ -66,11 +84,12 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
             },
         ];
 
+        _timerStarted = startTimer;
         _refreshTimer = new Timer(
             async _ => await RefreshAsync(force: false),
             null,
             startTimer ? TimeSpan.Zero : Timeout.InfiniteTimeSpan,
-            RefreshInterval);
+            selection.RefreshInterval);
     }
 
     public override ICommandItem[] TopLevelCommands() =>
@@ -85,6 +104,18 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
 
     // A newly saved API key should show up without waiting for the next tick.
     private void OnApiKeyChanged(object? sender, EventArgs args) => _ = RefreshAsync(force: true);
+
+    // Cached readings are reused, so this only redraws the bands with the new choice.
+    private void OnDockChoiceChanged(object? sender, EventArgs args) => _ = RefreshAsync(force: false);
+
+    // The next background read comes one new period after the change.
+    private void OnRefreshIntervalChanged(object? sender, EventArgs args)
+    {
+        if (_timerStarted)
+        {
+            _refreshTimer.Change(_selection.RefreshInterval, _selection.RefreshInterval);
+        }
+    }
 
     internal async Task RefreshAsync(bool force)
     {
@@ -111,6 +142,8 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
         _refreshTimer.Dispose();
         _selection.Changed -= OnSelectionChanged;
         _selection.ApiKeyChanged -= OnApiKeyChanged;
+        _selection.DockChoiceChanged -= OnDockChoiceChanged;
+        _selection.RefreshIntervalChanged -= OnRefreshIntervalChanged;
         foreach (var provider in _providers)
         {
             provider.Dispose();

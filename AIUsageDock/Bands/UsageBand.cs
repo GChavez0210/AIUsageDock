@@ -8,12 +8,23 @@ namespace AIUsageDock.Bands;
 internal sealed class UsageBand
 {
     private readonly IUsageProvider _provider;
+    private readonly Func<string?> _dockChoice;
+    private readonly Action<IReadOnlyList<UsageWindow>>? _windowsReported;
     private readonly ListItem _bandItem;
     private string? _appliedIconPath;
 
-    public UsageBand(IUsageProvider provider, UsagePage page)
+    /// <param name="dockChoice">The <see cref="Bands.DockChoice"/> value saved for this provider.</param>
+    /// <param name="windowsReported">Told which windows each successful refresh returned,
+    /// so the settings dropdown can offer them.</param>
+    public UsageBand(
+        IUsageProvider provider,
+        UsagePage page,
+        Func<string?>? dockChoice = null,
+        Action<IReadOnlyList<UsageWindow>>? windowsReported = null)
     {
         _provider = provider;
+        _dockChoice = dockChoice ?? (() => Bands.DockChoice.Auto);
+        _windowsReported = windowsReported;
         _bandItem = new ListItem(page)
         {
             Title = $"{provider.DisplayName} —",
@@ -43,7 +54,9 @@ internal sealed class UsageBand
                 return;
             }
 
-            var primary = snapshot.Session ?? snapshot.MostConstrained;
+            _windowsReported?.Invoke(snapshot.Windows);
+
+            var primary = Bands.DockChoice.Pick(snapshot, _dockChoice());
             if (primary is null)
             {
                 _bandItem.Title = $"{_provider.DisplayName} —";
@@ -56,7 +69,8 @@ internal sealed class UsageBand
             _bandItem.Title = $"{_provider.DisplayName} {primaryLeft}%";
 
             var subtitleParts = new List<string>();
-            if (snapshot.Weekly is { } weekly)
+            // The weekly figure is extra context; skip it when the band already shows a weekly window.
+            if (snapshot.Weekly is { } weekly && primary.Kind != UsageWindowKind.Weekly)
             {
                 subtitleParts.Add($"wk {(int)Math.Round(weekly.RemainingPercent)}%");
             }

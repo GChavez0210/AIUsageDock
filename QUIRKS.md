@@ -56,7 +56,7 @@ Claude Code keeps a service-reported `cachedUsageUtilization` snapshot in `~/.cl
 - Bars are green at 25% or more remaining, yellow ("Running low") from 10% to 24%, and red ("Almost out", or "Exhausted" at 0%) below 10% or when the window is locked. Thresholds are `LowThresholdPercent` and `CriticalThresholdPercent` in `Pages/UsageCard.cs`.
 - Windows the CLI does not report are shown as unavailable, never estimated.
 - If a live refresh fails but a still-valid cached reading exists, the page shows that reading with a note saying when it was taken.
-- Automatic refreshes run once a minute, are throttled per provider, and overlapping refreshes are coalesced into one.
+- Automatic refreshes run every 10 minutes by default (**Refresh every** in the settings: 1, 5, 10, 15, 30 or 60 minutes), are throttled per provider, and overlapping refreshes are coalesced into one. Opening a detail page or using **Refresh** reads usage right away.
 
 ## Privacy boundaries
 

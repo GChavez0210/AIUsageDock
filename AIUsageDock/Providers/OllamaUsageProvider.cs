@@ -43,7 +43,7 @@ internal sealed class OllamaUsageProvider : IUsageProvider
     }
 
     public string Id => "ollama";
-    public string DisplayName => "Ollama Cloud";
+    public string DisplayName => "Ollama";
     public string IconName => "ollama";
 
     public async Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default)
@@ -185,7 +185,7 @@ internal sealed class OllamaUsageProvider : IUsageProvider
             details.Insert(0, new UsageDetail("Plan", plan));
         }
 
-        return new UsageSnapshot("Ollama Cloud", plan, windows, fetchedAt, "ollama.com/api/balance", Details: details);
+        return new UsageSnapshot("Ollama", plan, windows, fetchedAt, "ollama.com/api/balance", Details: details);
     }
 
     private static void AddPercentWindow(JsonElement included, string property, UsageWindowKind kind, string label, int minutes, List<UsageWindow> windows)

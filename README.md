@@ -29,7 +29,7 @@ The three bands sit on the Dock next to the built-in Performance Monitor. Select
 
 ## Install a release
 
-Requirements: Windows 11, PowerToys Command Palette 0.9 or newer with the Dock enabled, and a signed-in Codex, Claude Code, and/or Antigravity CLI, or an Ollama API key (create one at ollama.com/settings/keys and paste it into **Ollama API key** in the extension settings).
+Requirements: Windows 11, PowerToys Command Palette 0.9 or newer with the Dock enabled, and a signed-in Codex, Claude Code, and/or Antigravity CLI, or an Ollama API key (create one at ollama.com/settings/keys and paste it into the **API key** field under **Ollama** in the extension settings).
 
 Download the `.msix` and `.cer` from the [Releases](https://github.com/GChavez0210/AIUsageDock/releases) page, trust the certificate once, then install (elevated PowerShell):
 
@@ -38,7 +38,7 @@ Import-Certificate -FilePath .\AIUsageDock.cer -CertStoreLocation Cert:\LocalMac
 Add-AppxPackage .\AIUsageDock.msix
 ```
 
-Restart Command Palette, then add the bands you want under **Settings → Dock → Bands**: **Codex usage**, **Claude usage**, **Antigravity usage**, and **Ollama Cloud usage**. Enabling the extension in the Extensions list does not add bands by itself. Keep the AI bands after the built-in Performance Monitor band; [QUIRKS.md](QUIRKS.md#place-the-ai-bands-after-the-performance-monitor-band) explains why.
+Restart Command Palette, then add the bands you want under **Settings → Dock → Bands**: **Codex usage**, **Claude usage**, **Antigravity usage**, and **Ollama usage**. Enabling the extension in the Extensions list does not add bands by itself. Keep the AI bands after the built-in Performance Monitor band; [QUIRKS.md](QUIRKS.md#place-the-ai-bands-after-the-performance-monitor-band) explains why.
 
 Use **Select subscriptions** in the extension, or its settings in Command Palette's installed extensions list, to turn off services you do not use. Disabled services are hidden from the extension's commands and Dock bands and are not refreshed.
 
@@ -46,7 +46,7 @@ Use **Select subscriptions** in the extension, or its settings in Command Palett
 
 Each band shows remaining capacity for its service: `100%` is a full window and drains toward `0%`. Selecting a band opens a detail page with:
 
-- One section per limit window with a remaining-capacity bar, the window length (`5h`, `7d`), a countdown to the reset and the local reset time. Bars are green, turn yellow under 25% remaining, and red under 10% or when the window is locked.
+- One section per limit window with a remaining-capacity bar, the window length (`5h`, `7d`), a countdown to the reset and the local reset time. Bars are green, turn yellow under 25% remaining, and red under 10% or when the window is locked. If the pale status tints are hard to see in the light theme, set **Usage bar colors** to **Accent color** in the extension settings.
 - An **Account** block with what the CLI reports about the subscription:
   - Claude: plan, account, organization and role for team plans, billing type, subscription date, rate-limit tier when it is not the default, and extra-usage spend against the monthly cap. Per-model weekly caps appear as their own windows when the service reports them.
   - Codex: ChatGPT plan, account email, sign-in method, and credit balance.
