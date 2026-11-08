@@ -23,7 +23,15 @@ internal static class UsageCard
     private const int LowThresholdPercent = 25;
     private const int CriticalThresholdPercent = 10;
 
-    public static string Build(UsageResult result, string providerName, string providerId, DateTimeOffset now, BarColorMode barColors = BarColorMode.Status)
+    /// <param name="notices">Status lines shown under the heading, such as a background
+    /// refresh in progress or one that failed, as (text, container style) pairs.</param>
+    public static string Build(
+        UsageResult result,
+        string providerName,
+        string providerId,
+        DateTimeOffset now,
+        BarColorMode barColors = BarColorMode.Status,
+        IReadOnlyList<(string Text, string Style)>? notices = null)
     {
         var body = new JsonArray();
 
@@ -36,6 +44,31 @@ internal static class UsageCard
             AppendSnapshot(body, result, snapshot, now, barColors);
         }
 
+        if (notices is { Count: > 0 })
+        {
+            var at = Math.Min(1, body.Count);
+            foreach (var (text, style) in notices)
+            {
+                body.Insert(at++, Note(text, style));
+            }
+        }
+
+        return Wrap(body);
+    }
+
+    /// <summary>Shown when a page opens before the provider has ever been read.</summary>
+    public static string BuildLoading(string providerName)
+    {
+        var body = new JsonArray
+        {
+            Text($"{providerName} usage", size: "Large", weight: "Bolder"),
+            Text("Reading usage…", subtle: true, spacing: "Medium"),
+        };
+        return Wrap(body);
+    }
+
+    private static string Wrap(JsonArray body)
+    {
         var card = new JsonObject
         {
             ["$schema"] = "http://adaptivecards.io/schemas/adaptive-card.json",

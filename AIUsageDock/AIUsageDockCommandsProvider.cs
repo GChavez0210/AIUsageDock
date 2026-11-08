@@ -46,13 +46,14 @@ public sealed partial class AIUsageDockCommandsProvider : CommandProvider, IDisp
         var refreshCommand = new RefreshAllCommand(() => RefreshAsync(force: true));
 
         // Detail pages opened from the Dock get Refresh and a gear to the settings form,
-        // so both are one step away instead of buried in Command Palette settings.
+        // so both are one step away instead of buried in Command Palette settings. When a
+        // page's background read brings a new reading, its band redraws from the cache.
         var pages = _providers
-            .Select(provider => new UsagePage(
+            .Select((provider, index) => new UsagePage(
                 provider,
                 () => selection.BarColors,
                 selection.ToolkitSettings.SettingsPage,
-                () => RefreshAsync(force: true)))
+                () => _ = _bands![index].RefreshAsync(force: false)))
             .ToArray();
         _bands = _providers
             .Zip(pages, (provider, page) => new UsageBand(

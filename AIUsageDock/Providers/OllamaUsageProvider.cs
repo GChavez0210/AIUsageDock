@@ -46,6 +46,8 @@ internal sealed class OllamaUsageProvider : IUsageProvider
     public string DisplayName => "Ollama";
     public string IconName => "ollama";
 
+    public UsageResult? LastResult => Volatile.Read(ref _cached);
+
     public async Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         if (!force && IsFresh(_cached?.Snapshot))

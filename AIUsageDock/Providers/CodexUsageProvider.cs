@@ -16,6 +16,8 @@ internal sealed class CodexUsageProvider : IUsageProvider
     public string DisplayName => "Codex";
     public string IconName => "codex";
 
+    public UsageResult? LastResult => Volatile.Read(ref _cached);
+
     public async Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         if (!force && IsFresh(_cached?.Snapshot))

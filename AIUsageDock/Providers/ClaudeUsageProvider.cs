@@ -31,6 +31,8 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
     public string DisplayName => "Claude";
     public string IconName => "claude";
 
+    public UsageResult? LastResult => Volatile.Read(ref _lastResult);
+
     public async Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         await _refreshLock.WaitAsync(cancellationToken);

@@ -4,17 +4,17 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 namespace AIUsageDock.Commands;
 
 /// <summary>
-/// Refreshes every provider from a detail page and redraws that page in place,
-/// so the bars update without leaving it.
+/// Starts a forced read for one detail page and redraws it at once, so the page
+/// shows "Refreshing…" and then the result instead of freezing until the read ends.
 /// </summary>
 internal sealed partial class RefreshPageCommand : InvokableCommand
 {
-    private readonly Func<Task> _refresh;
+    private readonly Action _start;
     private readonly Action _redraw;
 
-    public RefreshPageCommand(Func<Task> refresh, Action redraw)
+    public RefreshPageCommand(Action start, Action redraw)
     {
-        _refresh = refresh;
+        _start = start;
         _redraw = redraw;
         Name = "Refresh";
         Icon = new IconInfo("");
@@ -22,15 +22,7 @@ internal sealed partial class RefreshPageCommand : InvokableCommand
 
     public override ICommandResult Invoke()
     {
-        try
-        {
-            _refresh().GetAwaiter().GetResult();
-        }
-        catch
-        {
-            // The page shows the provider's own error or stale reading after the redraw.
-        }
-
+        _start();
         _redraw();
         return CommandResult.KeepOpen();
     }

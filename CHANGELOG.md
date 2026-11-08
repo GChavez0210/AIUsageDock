@@ -17,6 +17,7 @@ All notable changes to AI Usage Dock. Versions match the `v*` tags and the packa
 ### Changed
 
 - Background refresh runs every 10 minutes by default instead of every minute.
+- Detail pages open at once with the last reading and refresh in the background. A fresh cache answers without I/O and draws its final state; a slower read shows **Refreshing…** and redraws when it lands; a failed read keeps the last good reading under **Refresh failed: …**. The page's **Refresh** command now refreshes only that provider, also in the background. Pages previously blocked until the provider's CLI or API answered.
 
 ### Fixed
 

@@ -32,6 +32,8 @@ internal sealed class AntigravityUsageProvider : IUsageProvider
     public string DisplayName => "Antigravity";
     public string IconName => "antigravity";
 
+    public UsageResult? LastResult => Volatile.Read(ref _cached);
+
     public async Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         if (!force && IsFresh(_cached?.Snapshot))

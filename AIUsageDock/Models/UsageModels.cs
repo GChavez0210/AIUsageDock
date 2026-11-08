@@ -88,4 +88,10 @@ internal interface IUsageProvider : IDisposable
     string DisplayName { get; }
     string IconName { get; }
     Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The result of the last read, without doing any I/O, so a page can draw
+    /// immediately and refresh in the background. Null before the first read.
+    /// </summary>
+    UsageResult? LastResult => null;
 }
