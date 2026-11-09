@@ -33,6 +33,12 @@ internal sealed class UsagePage : ContentPage
     private bool _drewRefreshing;
     private bool _drawPending;
 
+    // Set and cleared under _gate. Task.IsCompleted is not used for this: the task only
+    // completes after RefreshAsync returns, so a draw that checks it in between would
+    // see a finished read as still running, and neither side would redraw.
+    private bool _inFlight;
+    private readonly FormContent _content = new() { DataJson = "{}" };
+
     /// <param name="settings">The extension settings form, reachable from the page's
     /// command bar so a page opened from the Dock is one step from its options.</param>
     /// <param name="onRefreshed">Called after a background refresh finishes, so the
@@ -55,7 +61,7 @@ internal sealed class UsagePage : ContentPage
 
         var commands = new List<IContextItem>
         {
-            new CommandContextItem(new Commands.RefreshPageCommand(() => BeginRefresh(force: true), () => RaiseItemsChanged()))
+            new CommandContextItem(new Commands.RefreshPageCommand(() => BeginRefresh(force: true), Redraw))
             {
                 Title = "Refresh",
                 Subtitle = $"Read {provider.DisplayName} usage again now",
@@ -83,7 +89,7 @@ internal sealed class UsagePage : ContentPage
         {
             lock (_gate)
             {
-                return _refresh is { IsCompleted: false } ? _refresh : null;
+                return _inFlight ? _refresh : null;
             }
         }
     }
@@ -118,30 +124,39 @@ internal sealed class UsagePage : ContentPage
         }
         finally
         {
-            bool missedFinish;
             lock (_gate)
             {
                 _drawPending = false;
-
-                // The read can finish after BuildCard drew "Refreshing…" but while this
-                // draw was still pending, when RefreshAsync leaves the redraw to us.
-                missedFinish = _drewRefreshing && _refresh is { IsCompleted: true };
-            }
-
-            if (missedFinish)
-            {
-                RaiseItemsChanged();
             }
         }
 
-        return
-        [
-            new FormContent
-            {
-                TemplateJson = template,
-                DataJson = "{}",
-            },
-        ];
+        // The read can finish after BuildCard drew "Refreshing…" but while this draw was
+        // still pending, in which case RefreshAsync left the redraw to us. Draw the final
+        // state now rather than raising ItemsChanged before this content is returned.
+        bool missedFinish;
+        lock (_gate)
+        {
+            missedFinish = _drewRefreshing && !_inFlight;
+        }
+
+        if (missedFinish)
+        {
+            template = BuildCard();
+        }
+
+        _content.TemplateJson = template;
+        return [_content];
+    }
+
+    /// <summary>
+    /// Pushes the current state to the screen. The page keeps one FormContent, so the
+    /// new template reaches Command Palette through its property change, and
+    /// ItemsChanged asks it to fetch the content again; either is enough.
+    /// </summary>
+    private void Redraw()
+    {
+        _content.TemplateJson = BuildCard();
+        RaiseItemsChanged();
     }
 
     internal string BuildCard()
@@ -151,7 +166,7 @@ internal sealed class UsagePage : ContentPage
         var current = _provider.LastResult;
         lock (_gate)
         {
-            refreshing = _refresh is { IsCompleted: false };
+            refreshing = _inFlight;
             refreshError = _refreshError;
             _drawnResult = current;
             _drawnError = refreshError;
@@ -212,11 +227,12 @@ internal sealed class UsagePage : ContentPage
     {
         lock (_gate)
         {
-            if (_refresh is { IsCompleted: false })
+            if (_inFlight)
             {
                 return;
             }
 
+            _inFlight = true;
             var before = _provider.LastResult;
             _refresh = Task.Run(() => RefreshAsync(before, force));
         }
@@ -239,6 +255,7 @@ internal sealed class UsagePage : ContentPage
         bool redraw;
         lock (_gate)
         {
+            _inFlight = false;
             _refreshError = error;
             _lastRefreshEnded = _clock();
 
@@ -255,7 +272,7 @@ internal sealed class UsagePage : ContentPage
 
         if (redraw)
         {
-            RaiseItemsChanged();
+            Redraw();
         }
     }
 }

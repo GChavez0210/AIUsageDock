@@ -23,13 +23,19 @@ public sealed class UsagePageTests
         var redraws = 0;
         page.ItemsChanged += (_, _) => Interlocked.Increment(ref redraws);
 
-        var first = Text(page);
+        var content = Assert.IsAssignableFrom<IFormContent>(Assert.Single(page.GetContent()));
+        var first = Regex.Unescape(content.TemplateJson);
         Assert.Contains("60% left", first);
         Assert.Contains("Refreshing…", first);
 
         provider.Complete(Reading(70));
         await page.PendingRefresh!.WaitAsync(TimeSpan.FromSeconds(5));
         await WaitFor(() => redraws == 1);
+
+        // The content already on screen is updated in place, without another fetch.
+        var inPlace = Regex.Unescape(content.TemplateJson);
+        Assert.Contains("30% left", inPlace);
+        Assert.DoesNotContain("Refreshing…", inPlace);
 
         var second = Text(page);
         Assert.Contains("30% left", second);
@@ -74,6 +80,24 @@ public sealed class UsagePageTests
     }
 
     [Fact]
+    public async Task ReadFinishingAroundTheFirstDrawNeverLeavesRefreshingOnScreen()
+    {
+        // Answers in roughly the page's 150 ms wait, so the read lands while the first
+        // draw is in progress. Whatever the interleaving, once the read is done the
+        // content on screen must not say "Refreshing…".
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            var provider = new DelayedProvider(Reading(40), Reading(70), TimeSpan.FromMilliseconds(140 + attempt % 20));
+            var page = new UsagePage(provider);
+            var content = Assert.IsAssignableFrom<IFormContent>(Assert.Single(page.GetContent()));
+
+            await WaitFor(() => page.PendingRefresh is null);
+            await WaitFor(() => !Regex.Unescape(content.TemplateJson).Contains("Refreshing…"));
+            Assert.Contains("30% left", Regex.Unescape(content.TemplateJson));
+        }
+    }
+
+    [Fact]
     public void FirstOpenWithoutAnyReadingShowsLoading()
     {
         var page = new UsagePage(new GatedProvider(null));
@@ -97,6 +121,25 @@ public sealed class UsagePageTests
         }
 
         Assert.True(condition());
+    }
+
+    private sealed class DelayedProvider(UsageResult last, UsageResult next, TimeSpan delay) : IUsageProvider
+    {
+        private UsageResult _last = last;
+
+        public string Id => "codex";
+        public string DisplayName => "Codex";
+        public string IconName => "codex";
+        public UsageResult? LastResult => Volatile.Read(ref _last);
+
+        public async Task<UsageResult> GetAsync(bool force = false, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(delay, cancellationToken);
+            Volatile.Write(ref _last, next);
+            return next;
+        }
+
+        public void Dispose() { }
     }
 
     /// <summary>Answers GetAsync only when the test calls Complete.</summary>
