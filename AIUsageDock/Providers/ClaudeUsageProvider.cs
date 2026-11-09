@@ -61,6 +61,18 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
                 refreshError = "Claude refresh is throttled";
             }
 
+            // Running /usage also rewrites the cache, which carries more than the printed
+            // text (severity, model scopes, extra usage). Prefer it when the command
+            // refreshed it; the parsed text is the fallback for when it did not.
+            if (mayRun)
+            {
+                var afterCommand = TryReadCache(DateTimeOffset.UtcNow, out var newAge, out var newResetExpired, out _);
+                if (afterCommand is not null && !newResetExpired && newAge <= FreshCacheAge && (cached is null || newAge < age))
+                {
+                    return _lastResult = UsageResult.Success(afterCommand);
+                }
+            }
+
             if (commandSnapshot is not null)
             {
                 return _lastResult = UsageResult.Success(WithAccountDetails(commandSnapshot));
@@ -159,13 +171,7 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
                 var scopeName = ReadScopeName(limit);
                 if (scopeName is not null && kind != UsageWindowKind.Other)
                 {
-                    var period = kind switch
-                    {
-                        UsageWindowKind.Session => "Session",
-                        UsageWindowKind.Monthly => "Month",
-                        _ => "Week",
-                    };
-                    AddIfActive(scoped, new UsageWindow(kind, $"{period} ({scopeName} only)", Math.Clamp(percent, 0d, 100d), reset, DurationFor(kind), Severity: severity), now);
+                    AddIfActive(scoped, new UsageWindow(kind, ScopedLabel(kind, scopeName), Math.Clamp(percent, 0d, 100d), reset, DurationFor(kind), Severity: severity), now);
                     continue;
                 }
 
@@ -181,8 +187,8 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
             .ToList();
 
         // Per-model weekly caps are separate limits, not duplicates of the shared week.
-        AddCachedBucket(utilization, "seven_day_opus", UsageWindowKind.Weekly, "Week (Opus)", now, shared);
-        AddCachedBucket(utilization, "seven_day_sonnet", UsageWindowKind.Weekly, "Week (Sonnet)", now, shared);
+        AddCachedBucket(utilization, "seven_day_opus", UsageWindowKind.Weekly, ScopedLabel(UsageWindowKind.Weekly, "Opus"), now, shared);
+        AddCachedBucket(utilization, "seven_day_sonnet", UsageWindowKind.Weekly, ScopedLabel(UsageWindowKind.Weekly, "Sonnet"), now, shared);
         shared.AddRange(scoped);
 
         if (shared.Count == 0)
@@ -372,8 +378,8 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
                 continue;
             }
 
-            var label = match.Groups[1].Value.Trim();
-            var lower = label.ToLowerInvariant();
+            var text = match.Groups[1].Value.Trim();
+            var lower = text.ToLowerInvariant();
             var kind = lower.Contains("session")
                 ? UsageWindowKind.Session
                 : lower.Contains("week")
@@ -383,7 +389,7 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
                         : UsageWindowKind.Other;
 
             var reset = ParseHumanReset(match.Groups[3].Value, now);
-            windows.Add(new UsageWindow(kind, label, Math.Clamp(used, 0d, 100d), reset, DurationFor(kind)));
+            windows.Add(new UsageWindow(kind, CommandLabel(kind, text), Math.Clamp(used, 0d, 100d), reset, DurationFor(kind)));
         }
 
         if (windows.Count == 0)
@@ -391,12 +397,48 @@ internal sealed partial class ClaudeUsageProvider : IUsageProvider
             return null;
         }
 
-        var binding = windows
-            .GroupBy(window => window.Kind)
-            .Select(group => group.OrderByDescending(window => window.UsedPercent).First())
-            .ToArray();
+        // Every limit is kept, as the cache parser does: the shared week and a
+        // per-model week are separate caps, and the Dock can be set to show either.
+        return new UsageSnapshot("Claude", null, windows, now, "claude /usage");
+    }
 
-        return new UsageSnapshot("Claude", null, binding, now, "claude /usage");
+    /// <summary>
+    /// Names a /usage line the way the cache parser names the same limit
+    /// ("Current week (all models)" → "Week (all models)", "Current week (Fable)" →
+    /// "Week (Fable only)"), so a Dock choice made on one source still matches when
+    /// the next reading comes from the other.
+    /// </summary>
+    internal static string CommandLabel(UsageWindowKind kind, string text)
+    {
+        var open = text.IndexOf('(');
+        var close = text.LastIndexOf(')');
+        var scope = open >= 0 && close > open ? text[(open + 1)..close].Trim() : null;
+        if (scope is not null && scope.EndsWith(" only", StringComparison.OrdinalIgnoreCase))
+        {
+            scope = scope[..^" only".Length].Trim();
+        }
+
+        var shared = string.IsNullOrEmpty(scope) || string.Equals(scope, "all models", StringComparison.OrdinalIgnoreCase);
+        return kind switch
+        {
+            UsageWindowKind.Session when shared => "Session",
+            UsageWindowKind.Weekly when shared => "Week (all models)",
+            UsageWindowKind.Monthly when shared => "Month",
+            UsageWindowKind.Other => text,
+            _ => ScopedLabel(kind, scope!),
+        };
+    }
+
+    /// <summary>The one name both parsers give a limit restricted to a model or surface.</summary>
+    private static string ScopedLabel(UsageWindowKind kind, string scope)
+    {
+        var period = kind switch
+        {
+            UsageWindowKind.Session => "Session",
+            UsageWindowKind.Monthly => "Month",
+            _ => "Week",
+        };
+        return $"{period} ({scope} only)";
     }
 
     /// <summary>

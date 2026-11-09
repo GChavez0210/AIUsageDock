@@ -22,6 +22,7 @@ All notable changes to AI Usage Dock. Versions match the `v*` tags and the packa
 ### Fixed
 
 - Claude's model-scoped weekly caps (`weekly_scoped` limits, shown as "Fable only" on claude.ai) appear as their own **Week (&lt;model&gt; only)** window. They were merged into **Week (all models)**, which then showed the scoped cap's percentage.
+- A Claude band set to show one window no longer slips to another. When the reading came from `claude /usage` instead of the usage cache, its windows were named after the printed text ("Current week (all models)") and only the tightest limit per period was kept, so the chosen window was missing and the band fell back to the tightest limit until the page reread the cache. Both sources now keep every limit under the same names (**Session**, **Week (all models)**, **Week (&lt;model&gt; only)**), and the cache is preferred whenever `/usage` refreshed it. The legacy per-model buckets are now labelled **Week (Opus only)** and **Week (Sonnet only)**.
 
 ## 1.0.1 — 2026-09-19
 

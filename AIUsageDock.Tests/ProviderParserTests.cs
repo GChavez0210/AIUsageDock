@@ -139,7 +139,7 @@ public sealed class ProviderParserTests
     }
 
     [Fact]
-    public void ClaudeLegacyUsageParserKeepsBindingWeeklyLimit()
+    public void ClaudeUsageCommandKeepsEveryLimitUnderCacheLabels()
     {
         const string resultText = """
         You are currently using your subscription to power your Claude Code usage
@@ -162,6 +162,23 @@ public sealed class ProviderParserTests
         Assert.Equal(65, snapshot.Weekly!.RemainingPercent);
         Assert.NotNull(snapshot.Session.ResetsAt);
         Assert.NotNull(snapshot.Weekly.ResetsAt);
+
+        // The shared week is kept next to the per-model one, under the names the cache
+        // parser uses, so a Dock choice survives a reading from either source.
+        Assert.Equal(["Session", "Week (all models)", "Week (Opus only)"], snapshot.Windows.Select(window => window.Label));
+        Assert.Equal(94, Assert.Single(snapshot.Windows, window => window.Label == "Week (all models)").RemainingPercent);
+    }
+
+    [Theory]
+    [InlineData("Session", "Current session", "Session")]
+    [InlineData("Weekly", "Current week (all models)", "Week (all models)")]
+    [InlineData("Weekly", "Current week", "Week (all models)")]
+    [InlineData("Weekly", "Current week (Fable)", "Week (Fable only)")]
+    [InlineData("Weekly", "Current week (Fable only)", "Week (Fable only)")]
+    [InlineData("Other", "Daily requests", "Daily requests")]
+    public void ClaudeUsageCommandLabelsMatchCacheLabels(string kind, string text, string expected)
+    {
+        Assert.Equal(expected, ClaudeUsageProvider.CommandLabel(Enum.Parse<UsageWindowKind>(kind), text));
     }
 
     [Fact]
@@ -297,7 +314,7 @@ public sealed class ProviderParserTests
         Assert.Equal("warning", allModels.Severity);
         Assert.Equal(58, allModels.RemainingPercent);
 
-        var opus = Assert.Single(snapshot.Windows, window => window.Label == "Week (Opus)");
+        var opus = Assert.Single(snapshot.Windows, window => window.Label == "Week (Opus only)");
         Assert.True(opus.IsLocked);
         Assert.Equal(30, snapshot.Weekly!.RemainingPercent);
 
