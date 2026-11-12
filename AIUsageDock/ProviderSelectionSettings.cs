@@ -12,6 +12,16 @@ internal sealed class ProviderSelectionSettings
     internal const string BarColorsSetting = "barColors";
     internal const string RefreshIntervalSetting = "refreshMinutes";
     internal const int DefaultRefreshMinutes = 10;
+    internal const string UsageShownSetting = "usageShown";
+    internal const string ResetTimesSetting = "resetTimes";
+    internal const string ShowPaceSetting = "showPace";
+    internal const string HidePersonalInfoSetting = "hidePersonalInfo";
+    internal const string CheckStatusSetting = "checkStatus";
+    internal const string QuotaWarningsSetting = "quotaWarnings";
+    internal const string HighUsageSetting = "highUsage";
+    internal const string CriticalUsageSetting = "criticalUsage";
+    internal static readonly int[] HighUsageChoices = [50, 60, 70, 75, 80, 85];
+    internal static readonly int[] CriticalUsageChoices = [80, 85, 90, 95];
     internal static readonly int[] RefreshMinuteChoices = [1, 5, 10, 15, 30, 60];
     private const string OllamaSecretName = "ollama-api-key";
 
@@ -29,6 +39,12 @@ internal sealed class ProviderSelectionSettings
     private readonly PasswordSetting _ollamaApiKey;
     private readonly ChoiceSetSetting _barColors;
     private readonly ChoiceSetSetting _refreshInterval;
+    private readonly ChoiceSetSetting _usageShown;
+    private readonly ChoiceSetSetting _resetTimes;
+    private readonly ChoiceSetSetting _highUsage;
+    private readonly ChoiceSetSetting _criticalUsage;
+    private Pages.DisplayOptions _lastDisplay = Pages.DisplayOptions.Default;
+    private bool _lastStatusChecks;
     private TimeSpan _lastRefreshInterval;
     private readonly Dictionary<string, DockChoiceSetting> _dockChoices = [];
     private readonly Dictionary<string, string> _lastDockValues = [];
@@ -84,6 +100,69 @@ internal sealed class ProviderSelectionSettings
         };
         _settings.Add(_refreshInterval);
 
+        _usageShown = new ChoiceSetSetting(
+            UsageShownSetting,
+            "Show usage as",
+            "Whether the Dock bands, bars and percentages count what is left or what is used.",
+            [
+                new ChoiceSetSetting.Choice("Percent left", "left"),
+                new ChoiceSetSetting.Choice("Percent used", "used"),
+            ])
+        {
+            Value = "left",
+        };
+        _settings.Add(_usageShown);
+
+        _resetTimes = new ChoiceSetSetting(
+            ResetTimesSetting,
+            "Show reset times as",
+            "A countdown (\"Resets in 1h 23m\") or the clock time of the reset (\"Resets 3:09 PM\").",
+            [
+                new ChoiceSetSetting.Choice("Countdown", "relative"),
+                new ChoiceSetSetting.Choice("Clock time", "absolute"),
+            ])
+        {
+            Value = "relative",
+        };
+        _settings.Add(_resetTimes);
+
+        _settings.Add(new ToggleSetting(ShowPaceSetting, true)
+        {
+            Label = "Show pace",
+            Description = "Compare usage with the time passed in each window: \"33% in reserve · Lasts until reset\"",
+        });
+        _settings.Add(new ToggleSetting(HidePersonalInfoSetting, false)
+        {
+            Label = "Hide personal information",
+            Description = "Leave account names, organizations and email addresses off the pages",
+        });
+        _settings.Add(new ToggleSetting(CheckStatusSetting, true)
+        {
+            Label = "Check provider status",
+            Description = "Read the public status pages of Claude and OpenAI and show a line during an incident",
+        });
+        _settings.Add(new ToggleSetting(QuotaWarningsSetting, true)
+        {
+            Label = "Quota warnings",
+            Description = "Send a notification when a usage window passes a threshold below or runs out",
+        });
+
+        _highUsage = PercentChoice(
+            HighUsageSetting,
+            "Warn at",
+            "Usage at or above this is drawn yellow as \"Running low\".",
+            HighUsageChoices,
+            Pages.DisplayOptions.DefaultHighUsedPercent);
+        _settings.Add(_highUsage);
+
+        _criticalUsage = PercentChoice(
+            CriticalUsageSetting,
+            "Critical at",
+            "Usage at or above this is drawn red as \"Almost out\".",
+            CriticalUsageChoices,
+            Pages.DisplayOptions.DefaultCriticalUsedPercent);
+        _settings.Add(_criticalUsage);
+
         _ollamaApiKeyValue = _secrets.Read(OllamaSecretName);
 
         try
@@ -108,6 +187,8 @@ internal sealed class ProviderSelectionSettings
         DescribeApiKey();
         RememberDockValues();
         _lastRefreshInterval = RefreshInterval;
+        _lastDisplay = Display;
+        _lastStatusChecks = StatusChecks;
         _settings.SettingsChanged += (_, _) => PersistAndNotify();
     }
 
@@ -134,6 +215,52 @@ internal sealed class ProviderSelectionSettings
         RefreshMinuteChoices.Contains(minutes)
             ? TimeSpan.FromMinutes(minutes)
             : TimeSpan.FromMinutes(DefaultRefreshMinutes);
+
+    /// <summary>Raised when a setting that changes how readings are worded or drawn changes.</summary>
+    public event EventHandler? DisplayChanged;
+
+    /// <summary>Raised when "Check provider status" is switched on or off.</summary>
+    public event EventHandler? StatusChecksChanged;
+
+    /// <summary>How readings are worded and drawn. Hand-edited thresholds fall back to the defaults.</summary>
+    public Pages.DisplayOptions Display
+    {
+        get
+        {
+            var high = PercentValue(_highUsage, HighUsageChoices, Pages.DisplayOptions.DefaultHighUsedPercent);
+            var critical = PercentValue(_criticalUsage, CriticalUsageChoices, Pages.DisplayOptions.DefaultCriticalUsedPercent);
+            return new Pages.DisplayOptions(
+                BarColors,
+                ShowUsed: string.Equals(_usageShown.Value, "used", StringComparison.OrdinalIgnoreCase),
+                RelativeResets: !string.Equals(_resetTimes.Value, "absolute", StringComparison.OrdinalIgnoreCase),
+                ShowPace: _settings.GetSetting<bool>(ShowPaceSetting),
+                HidePersonalInfo: _settings.GetSetting<bool>(HidePersonalInfoSetting),
+                HighUsedPercent: Math.Min(high, critical),
+                CriticalUsedPercent: critical);
+        }
+    }
+
+    public bool StatusChecks => _settings.GetSetting<bool>(CheckStatusSetting);
+
+    public bool QuotaWarnings => _settings.GetSetting<bool>(QuotaWarningsSetting);
+
+    private static ChoiceSetSetting PercentChoice(string key, string label, string description, int[] choices, int defaultValue) =>
+        new(
+            key,
+            label,
+            description,
+            [.. choices.Select(percent => new ChoiceSetSetting.Choice(
+                $"{percent}% used",
+                percent.ToString(System.Globalization.CultureInfo.InvariantCulture)))])
+        {
+            Value = defaultValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+    private static int PercentValue(ChoiceSetSetting setting, int[] choices, int defaultValue) =>
+        int.TryParse(setting.Value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var percent) &&
+        choices.Contains(percent)
+            ? percent
+            : defaultValue;
 
     public bool IsEnabled(string providerId) => _settings.GetSetting<bool>(providerId);
 
@@ -183,6 +310,19 @@ internal sealed class ProviderSelectionSettings
         {
             _lastRefreshInterval = RefreshInterval;
             RefreshIntervalChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        var display = Display;
+        if (display != _lastDisplay)
+        {
+            _lastDisplay = display;
+            DisplayChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (StatusChecks != _lastStatusChecks)
+        {
+            _lastStatusChecks = StatusChecks;
+            StatusChecksChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 

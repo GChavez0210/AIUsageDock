@@ -13,19 +13,19 @@ The extension delegates authentication and usage retrieval to the installed CLIs
 - Antigravity: calls `agy -p "/usage" --mode plan --output-format json`, which returns quota data without consuming tokens, and reads the active account name from `~/.gemini/google_accounts.json`.
 - Ollama Cloud: calls the documented `GET https://ollama.com/api/balance` endpoint with the API key entered in the extension settings (stored in Windows Credential Manager) or, failing that, the `OLLAMA_API_KEY` environment variable. Legacy Pro/Max plans report session and weekly windows; current plans report included credits for the billing period.
 
-It never reads or stores OAuth access tokens. Ollama Cloud is the one provider called directly, because it has no CLI usage command; its API key is kept in Windows Credential Manager, never in `settings.json`. The profile files it reads contain only account metadata; credentials live in separate files the extension does not open.
+It never reads or stores OAuth access tokens. Ollama Cloud is the one provider whose usage is read directly, because it has no CLI usage command; its API key is kept in Windows Credential Manager, never in `settings.json`. The profile files it reads contain only account metadata; credentials live in separate files the extension does not open. With **Check provider status** on, it also reads the public status feeds of Claude and OpenAI, which carry no credentials.
 
 See [QUIRKS.md](QUIRKS.md) for the non-obvious behaviour of the extension, Command Palette, and the CLIs, and [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Screenshots
 
-The three bands sit on the Dock next to the built-in Performance Monitor. Selecting a band opens its detail page.
+The bands sit on the Dock next to the built-in Performance Monitor. Selecting a band opens its detail page. The screenshots were taken with **Hide personal information** on.
 
-![Claude detail page showing session and weekly bars, plan, billing, and extra usage](screenshots/claude.png)
+![Claude detail page with an incident line, two weekly windows with thin bars and pace ticks, and billing details](screenshots/claude.png)
 
-| Codex | Antigravity |
+| Ollama | Antigravity |
 |---|---|
-| ![Codex detail page with a session window running low](screenshots/codex.png) | ![Antigravity detail page with per-model-group windows](screenshots/antigravity.png) |
+| ![Ollama detail page with session and weekly windows in reserve](screenshots/ollama.png) | ![Antigravity detail page with per-model-group windows](screenshots/antigravity.png) |
 
 ## Install a release
 
@@ -38,21 +38,24 @@ Import-Certificate -FilePath .\AIUsageDock.cer -CertStoreLocation Cert:\LocalMac
 Add-AppxPackage .\AIUsageDock.msix
 ```
 
-Restart Command Palette, then add the bands you want under **Settings → Dock → Bands**: **Codex usage**, **Claude usage**, **Antigravity usage**, and **Ollama usage**. Enabling the extension in the Extensions list does not add bands by itself. Keep the AI bands after the built-in Performance Monitor band; [QUIRKS.md](QUIRKS.md#place-the-ai-bands-after-the-performance-monitor-band) explains why.
+Restart Command Palette, then add the bands you want under **Settings → Dock → Bands**: **Codex usage**, **Claude usage**, **Antigravity usage**, **Ollama usage**, and **AI usage overview** (every provider in one band). Enabling the extension in the Extensions list does not add bands by itself. Keep the AI bands after the built-in Performance Monitor band; [QUIRKS.md](QUIRKS.md#place-the-ai-bands-after-the-performance-monitor-band) explains why.
 
 Use **Select subscriptions** in the extension, or its settings in Command Palette's installed extensions list, to turn off services you do not use. Disabled services are hidden from the extension's commands and Dock bands and are not refreshed.
 
 ## What you see
 
-Each band shows remaining capacity for its service: `100%` is a full window and drains toward `0%`. Selecting a band opens a detail page with:
+Each band shows remaining capacity for its service: `100%` is a full window and drains toward `0%`. Set **Show usage as** to **Percent used** to count the other way everywhere. The **AI usage overview** band names the tightest provider and lists the others; selecting it opens every enabled provider on one page. Selecting a provider band opens its detail page, laid out like the tray panel of [Win-CodexBar](https://github.com/nesszer/Win-CodexBar), with:
 
-- One section per limit window with a remaining-capacity bar, the window length (`5h`, `7d`), a countdown to the reset and the local reset time. Bars are green, turn yellow under 25% remaining, and red under 10% or when the window is locked. If the pale status tints are hard to see in the light theme, set **Usage bar colors** to **Accent color** in the extension settings.
+- A header with the provider name and account email, then how long ago usage was read and the plan.
+- One section per limit window with a bar, the window length (`5h`, `7d`), the percentage, the reset as a countdown (or the clock time, under **Show reset times as**), and a pace line that compares usage with the time passed: "33% in reserve · Lasts until reset" or "5% in deficit · Runs out in 2d 20h". Bars are green, turn yellow at 75% used and red at 90% used or when the window is locked; **Warn at** and **Critical at** move those points. Set **Usage bar colors** to **Accent color** for one blue bar colour, as in Win-CodexBar.
 - An **Account** block with what the CLI reports about the subscription:
   - Claude: plan, account, organization and role for team plans, billing type, subscription date, rate-limit tier when it is not the default, and extra-usage spend against the monthly cap. Per-model weekly caps appear as their own windows when the service reports them.
   - Codex: ChatGPT plan, account email, sign-in method, and credit balance.
   - Antigravity: active Google account, plus a plan or tier if a future CLI adds one to the quota payload.
   - Ollama Cloud: plan (`Legacy` for session/weekly plans), included credits left for the period on current plans, and purchased credit balance.
-- A footer with the data source and how long ago it was read.
+- A footer with the data source and when it was read.
+
+While Claude or OpenAI has an open incident on its status page, the page says so and the band shows `incident` (**Check provider status**). A Windows notification is sent when a window reaches the warning or critical threshold or runs out (**Quota warnings**). **Hide personal information** leaves the account, organization and email addresses off the pages.
 
 When a provider cannot be read, the page names the cause (CLI missing, not signed in, API key missing or rejected, timed out, no usage data) and says what to do about it.
 
@@ -86,10 +89,12 @@ To build the same signed package locally, run `./build-release.ps1`; it writes `
 
 ```text
 AIUsageDock/
-  Bands/       Dock presentation
-  Models/      Shared usage model
-  Pages/       Command Palette detail pages
-  Providers/   Claude, Codex, and Antigravity CLI adapters, Ollama Cloud HTTP adapter
+  Bands/          Dock presentation, one band per provider and the overview band
+  Models/         Shared usage model and pace
+  Notifications/  Quota warnings
+  Pages/          Detail pages, the overview page and their wording
+  Providers/      Claude, Codex, and Antigravity CLI adapters, Ollama Cloud HTTP adapter
+  Status/         Provider status pages
 AIUsageDock.Tests/
   Provider parser and process launch regression tests
 ```

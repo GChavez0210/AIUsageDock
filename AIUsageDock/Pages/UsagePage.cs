@@ -18,7 +18,8 @@ internal sealed class UsagePage : ContentPage
     private static readonly TimeSpan RedrawGrace = TimeSpan.FromSeconds(5);
 
     private readonly IUsageProvider _provider;
-    private readonly Func<BarColorMode> _barColors;
+    private readonly Func<DisplayOptions> _display;
+    private readonly Func<Status.ProviderStatus?> _status;
     private readonly Action? _onRefreshed;
     private readonly Func<DateTimeOffset> _clock;
     private readonly object _gate = new();
@@ -45,13 +46,15 @@ internal sealed class UsagePage : ContentPage
     /// provider's Dock band can show the same reading.</param>
     public UsagePage(
         IUsageProvider provider,
-        Func<BarColorMode>? barColors = null,
+        Func<DisplayOptions>? display = null,
         ICommand? settings = null,
         Action? onRefreshed = null,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        Func<Status.ProviderStatus?>? status = null)
     {
         _provider = provider;
-        _barColors = barColors ?? (() => BarColorMode.Status);
+        _display = display ?? (() => DisplayOptions.Default);
+        _status = status ?? (() => null);
         _onRefreshed = onRefreshed;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
         Id = $"aiusagedock.page.{provider.Id}";
@@ -74,7 +77,7 @@ internal sealed class UsagePage : ContentPage
             commands.Add(new CommandContextItem(settings)
             {
                 Title = "Settings",
-                Subtitle = "Providers, Dock values, API key and bar colors",
+                Subtitle = "Providers, Dock values, API key and display options",
                 Icon = new IconInfo(""),
             });
         }
@@ -209,7 +212,7 @@ internal sealed class UsagePage : ContentPage
             {
                 return refreshError is null
                     ? UsageCard.BuildLoading(_provider.DisplayName)
-                    : UsageCard.Build(UsageResult.Failure(UsageFailureReason.ProcessFailed, refreshError), _provider.DisplayName, _provider.Id, _clock(), _barColors());
+                    : UsageCard.Build(UsageResult.Failure(UsageFailureReason.ProcessFailed, refreshError), _provider.DisplayName, _provider.Id, _clock(), _display(), status: _status());
             }
             else
             {
@@ -218,7 +221,7 @@ internal sealed class UsagePage : ContentPage
             }
         }
 
-        return UsageCard.Build(result, _provider.DisplayName, _provider.Id, _clock(), _barColors(), notices);
+        return UsageCard.Build(result, _provider.DisplayName, _provider.Id, _clock(), _display(), notices, _status());
     }
 
     /// <summary>Starts a read unless one is already running. A non-forced read only

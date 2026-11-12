@@ -23,14 +23,14 @@ public sealed class ProviderSelectionTests
             using (var commandProvider = new AIUsageDockCommandsProvider(selection, startTimer: false, providers))
             {
                 Assert.NotNull(commandProvider.Settings);
-                Assert.Equal(4, commandProvider.GetDockBands()!.Length);
-                Assert.Equal(6, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(5, commandProvider.GetDockBands()!.Length);
+                Assert.Equal(7, commandProvider.TopLevelCommands().Length);
 
                 var form = Assert.IsType<SettingsForm>(Assert.Single(selection.ToolkitSettings.ToContent()));
                 form.SubmitForm("""{"claude":"false","codex":"true","antigravity":"false","ollama":"false"}""", "{}");
 
-                Assert.Single(commandProvider.GetDockBands()!);
-                Assert.Equal(3, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(2, commandProvider.GetDockBands()!.Length);
+                Assert.Equal(4, commandProvider.TopLevelCommands().Length);
                 Assert.Contains(commandProvider.TopLevelCommands(), item => item.Title == "Select subscriptions");
                 Assert.DoesNotContain(commandProvider.TopLevelCommands(), item => item.Title == "About AI Usage Dock");
 

@@ -15,7 +15,7 @@ public sealed class DockBandContractTests
         var bands = provider.GetDockBands();
 
         Assert.NotNull(bands);
-        Assert.Equal(4, bands.Length);
+        Assert.Equal(5, bands.Length);
         Assert.All(bands, band =>
         {
             Assert.NotNull(band.Command);
