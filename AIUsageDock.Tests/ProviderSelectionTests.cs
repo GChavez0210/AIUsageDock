@@ -18,18 +18,19 @@ public sealed class ProviderSelectionTests
                 new FakeUsageProvider("claude"),
                 new FakeUsageProvider("codex"),
                 new FakeUsageProvider("antigravity"),
+                new FakeUsageProvider("ollama"),
             };
             using (var commandProvider = new AIUsageDockCommandsProvider(selection, startTimer: false, providers))
             {
                 Assert.NotNull(commandProvider.Settings);
-                Assert.Equal(3, commandProvider.GetDockBands()!.Length);
-                Assert.Equal(5, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(5, commandProvider.GetDockBands()!.Length);
+                Assert.Equal(7, commandProvider.TopLevelCommands().Length);
 
                 var form = Assert.IsType<SettingsForm>(Assert.Single(selection.ToolkitSettings.ToContent()));
-                form.SubmitForm("""{"claude":"false","codex":"true","antigravity":"false"}""", "{}");
+                form.SubmitForm("""{"claude":"false","codex":"true","antigravity":"false","ollama":"false"}""", "{}");
 
-                Assert.Single(commandProvider.GetDockBands()!);
-                Assert.Equal(3, commandProvider.TopLevelCommands().Length);
+                Assert.Equal(2, commandProvider.GetDockBands()!.Length);
+                Assert.Equal(4, commandProvider.TopLevelCommands().Length);
                 Assert.Contains(commandProvider.TopLevelCommands(), item => item.Title == "Select subscriptions");
                 Assert.DoesNotContain(commandProvider.TopLevelCommands(), item => item.Title == "About AI Usage Dock");
 
@@ -37,9 +38,10 @@ public sealed class ProviderSelectionTests
                 Assert.Equal(0, providers[0].Calls);
                 Assert.Equal(1, providers[1].Calls);
                 Assert.Equal(0, providers[2].Calls);
+                Assert.Equal(0, providers[3].Calls);
 
                 var secondForm = Assert.IsType<SettingsForm>(Assert.Single(selection.ToolkitSettings.ToContent()));
-                secondForm.SubmitForm("""{"claude":"false","codex":"false","antigravity":"false"}""", "{}");
+                secondForm.SubmitForm("""{"claude":"false","codex":"false","antigravity":"false","ollama":"false"}""", "{}");
                 Assert.Empty(commandProvider.GetDockBands()!);
                 Assert.Equal(2, commandProvider.TopLevelCommands().Length);
                 await commandProvider.RefreshAsync(force: true);

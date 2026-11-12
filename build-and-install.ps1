@@ -1,9 +1,15 @@
+param(
+    # Defaults to the OS architecture, so an ARM64 machine gets a native arm64 build.
+    [ValidateSet("x64", "arm64")]
+    [string]$Architecture = $(if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { "arm64" } else { "x64" })
+)
+
 $ErrorActionPreference = "Stop"
 
 $projectDirectory = Join-Path $PSScriptRoot "AIUsageDock"
 $project = Join-Path $projectDirectory "AIUsageDock.csproj"
 $targetFramework = "net10.0-windows10.0.26100.0"
-$runtime = "win-x64"
+$runtime = "win-$Architecture"
 $bin = Join-Path $projectDirectory "bin"
 $publish = Join-Path $bin "Release\$targetFramework\$runtime\publish"
 $staging = Join-Path $bin "msix-staging"
@@ -11,7 +17,7 @@ $staging = Join-Path $bin "msix-staging"
 Write-Host "[1/5] Run tests"
 & (Join-Path $PSScriptRoot "build.ps1")
 
-Write-Host "[2/5] Publish extension"
+Write-Host "[2/5] Publish extension ($runtime)"
 dotnet publish $project -c Release -r $runtime --self-contained false -p:GenerateAppxPackageOnBuild=false -v minimal -nologo
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 

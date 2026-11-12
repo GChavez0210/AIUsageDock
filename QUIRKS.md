@@ -18,7 +18,7 @@ A refresh updates each band's title and subtitle directly. The extension deliber
 
 ### Detail pages follow the palette theme
 
-Detail pages are Adaptive Cards rendered by Command Palette. Colours, fonts, and the exact shade of green, yellow, and red on the bars come from the host's Adaptive Card theme, not from the extension.
+Detail pages are Adaptive Cards rendered by Command Palette. Fonts and text colours come from the host's Adaptive Card theme. The bars are the exception: Adaptive Cards cannot draw a bar thinner than a padded container, so each bar is a small PNG the extension draws itself (`Pages/BarImage.cs`) with fixed colours that read on both themes.
 
 ## CLI processes
 
@@ -53,14 +53,16 @@ Claude Code keeps a service-reported `cachedUsageUtilization` snapshot in `~/.cl
 ## Data and display
 
 - Percentages show **remaining** capacity: `100%` is a full window and drains toward `0%`.
-- Bars are green at 25% or more remaining, yellow ("Running low") from 10% to 24%, and red ("Almost out", or "Exhausted" at 0%) below 10% or when the window is locked. Thresholds are `LowThresholdPercent` and `CriticalThresholdPercent` in `Pages/UsageCard.cs`.
+- Bars are green below 75% used, yellow ("Running low") from 75%, and red ("Almost out", or "Exhausted" at 0% left) from 90% or when the window is locked. **Warn at** and **Critical at** in the settings change the two points; the colour is decided on the rounded percentage, so it always matches the number shown.
+- The pace line compares the share of a window that is used with the share of its time that has passed, spent evenly. It needs both a window length and a reset time, and is hidden while less than 3% of the window has passed, when the window is used up, and when the reset is further away than the window is long.
+- Quota warnings are remembered only while the extension runs. After Command Palette restarts, a window that is already past a threshold notifies once more.
 - Windows the CLI does not report are shown as unavailable, never estimated.
 - If a live refresh fails but a still-valid cached reading exists, the page shows that reading with a note saying when it was taken.
-- Automatic refreshes run once a minute, are throttled per provider, and overlapping refreshes are coalesced into one.
+- Automatic refreshes run every 10 minutes by default (**Refresh every** in the settings: 1, 5, 10, 15, 30 or 60 minutes), are throttled per provider, and overlapping refreshes are coalesced into one. Opening a detail page or using **Refresh** reads usage right away.
 
 ## Privacy boundaries
 
-The extension never reads or stores OAuth access tokens and never calls provider endpoints directly. The files it opens (`~/.claude.json`, `~/.gemini/google_accounts.json`) contain account metadata only; credentials live in separate files the extension does not touch. Usage numbers always come from the CLI the vendor ships.
+The extension never reads or stores OAuth access tokens. It calls two kinds of endpoint directly: Ollama's documented balance API, with the API key you entered, and, while **Check provider status** is on, the public status feeds `status.claude.com/api/v2/status.json` and `status.openai.com/api/v2/status.json`, which are plain GET requests that carry no credentials or account data. The files it opens (`~/.claude.json`, `~/.gemini/google_accounts.json`) contain account metadata only; credentials live in separate files the extension does not touch. Usage numbers for Claude, Codex and Antigravity always come from the CLI the vendor ships.
 
 ## Packaging
 
